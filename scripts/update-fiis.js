@@ -35,16 +35,6 @@ async function fetchWeekly(ticker) {
   } catch { return null; }
 }
 
-async function fetchDividendoMfinance(ticker) {
-  try {
-    const url = `https://mfinance.com.br/api/v1/fiis/${ticker}`;
-    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' } });
-    if (!res.ok) return null;
-    const json = await res.json();
-    return json?.lastDividend ?? json?.dividendYield ?? null;
-  } catch { return null; }
-}
-
 async function upsertSupabase(rows) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/fiis_mercado`, {
     method: 'POST',
@@ -62,12 +52,12 @@ async function upsertSupabase(rows) {
 async function main() {
   console.log(`[${new Date().toISOString()}] Iniciando ${TICKERS.length} tickers...`);
 
-  // Teste mfinance
-  const test = await fetch('https://mfinance.com.br/api/v1/fiis/MXRF11', {
-    headers: { 'User-Agent': 'Mozilla/5.0' }
+  // LOG DIAGNÓSTICO: ver JSON completo do mfinance para MXRF11
+  const testRes = await fetch('https://mfinance.com.br/api/v1/fiis/MXRF11', {
+    headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' }
   });
-  console.log('mfinance status:', test.status);
-  console.log('mfinance body:', (await test.text()).substring(0, 300));
+  console.log('=== mfinance MXRF11 status:', testRes.status);
+  console.log('=== mfinance MXRF11 body:', await testRes.text());
 
   const rows = [];
 
@@ -81,23 +71,17 @@ async function main() {
       await sleep(400);
       const varSem = await fetchWeekly(ticker);
 
-      await sleep(400);
-      const ultimoDiv = await fetchDividendoMfinance(ticker);
-      const dyMensal = (ultimoDiv && preco)
-        ? parseFloat(((ultimoDiv / preco) * 100).toFixed(4))
-        : null;
-
       rows.push({
         ticker,
         preco_atual:   preco,
         var_dia:       r.regularMarketChangePercent ?? null,
         var_semanal:   varSem,
-        ultimo_div:    ultimoDiv,
-        dy_percent:    dyMensal,
+        ultimo_div:    null,
+        dy_percent:    null,
         atualizado_em: new Date().toISOString()
       });
 
-      console.log(`  ${ticker}: R$${preco} | div: ${ultimoDiv} | DY: ${dyMensal}%`);
+      console.log(`  ${ticker}: R$${preco} | var_sem: ${varSem}%`);
       await sleep(400);
     } catch (e) {
       console.error(`  ${ticker}: ERRO — ${e.message}`);
