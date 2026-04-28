@@ -35,22 +35,6 @@ async function fetchWeekly(ticker) {
   } catch { return null; }
 }
 
-// mfinance retorna dividendYield como DY% anual
-// último dividendo mensal estimado = (dyAnual% / 100 / 12) * preço
-async function fetchDividendo(ticker, preco) {
-  try {
-    const url = `https://mfinance.com.br/api/v1/fiis/${ticker}`;
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' }
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    const dyAnual = json?.dividendYield ?? null;
-    if (!dyAnual || !preco) return null;
-    return parseFloat(((dyAnual / 100 / 12) * preco).toFixed(4));
-  } catch { return null; }
-}
-
 async function upsertSupabase(rows) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/fiis_mercado`, {
     method: 'POST',
@@ -68,6 +52,23 @@ async function upsertSupabase(rows) {
 async function main() {
   console.log(`[${new Date().toISOString()}] Iniciando ${TICKERS.length} tickers...`);
 
+  // DIAGNÓSTICO: testar endpoints do FundsExplorer
+  const testUrls = [
+    'https://www.fundsexplorer.com.br/funds/MXRF11',
+    'https://www.fundsexplorer.com.br/api/fiis/MXRF11',
+    'https://api.fundsexplorer.com.br/v1/fund/MXRF11',
+    'https://www.fundsexplorer.com.br/api/v2/fiis/MXRF11/dividends'
+  ];
+  for (const url of testUrls) {
+    try {
+      const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' } });
+      const body = await r.text();
+      console.log(`[FE] ${url} → ${r.status} | ${body.substring(0, 200)}`);
+    } catch(e) {
+      console.log(`[FE] ${url} → ERRO: ${e.message}`);
+    }
+  }
+
   const rows = [];
 
   for (const ticker of TICKERS) {
@@ -80,23 +81,17 @@ async function main() {
       await sleep(400);
       const varSem = await fetchWeekly(ticker);
 
-      await sleep(400);
-      const ultimoDiv = await fetchDividendo(ticker, preco);
-      const dyMensal = (ultimoDiv && preco)
-        ? parseFloat(((ultimoDiv / preco) * 100).toFixed(4))
-        : null;
-
       rows.push({
         ticker,
         preco_atual:   preco,
         var_dia:       r.regularMarketChangePercent ?? null,
         var_semanal:   varSem,
-        ultimo_div:    ultimoDiv,
-        dy_percent:    dyMensal,
+        ultimo_div:    null,
+        dy_percent:    null,
         atualizado_em: new Date().toISOString()
       });
 
-      console.log(`  ${ticker}: R$${preco} | div: ${ultimoDiv} | DY: ${dyMensal}%`);
+      console.log(`  ${ticker}: R$${preco} | var_sem: ${varSem}%`);
       await sleep(400);
     } catch (e) {
       console.error(`  ${ticker}: ERRO — ${e.message}`);
