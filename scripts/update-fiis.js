@@ -8,18 +8,20 @@ const TICKERS = [
   'KNCR11','TRXF11','BTLG11','HGRU11','XPLG11','VISC11'
 ];
 
-// Busca UM ticker por vez (limite do plano gratuito brapi)
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// Plano gratuito brapi: sem módulos extras, só dados básicos de cotação
 async function fetchTicker(ticker) {
-  const url = `https://brapi.dev/api/quote/${ticker}?modules=dividendsData&fundamental=true&token=${BRAPI_TOKEN}`;
+  const url = `https://brapi.dev/api/quote/${ticker}?token=${BRAPI_TOKEN}`;
   const res = await fetch(url, {
     headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' }
   });
-  if (!res.ok) throw new Error(`brapi ${res.status} em ${ticker}: ${await res.text()}`);
+  if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
   const json = await res.json();
   return json?.results?.[0] ?? null;
 }
 
-// Busca histórico de 5 dias para calcular var. semanal
+// Var. semanal via histórico de 5 dias
 async function fetchWeekly(ticker) {
   try {
     const url = `https://brapi.dev/api/quote/${ticker}?range=5d&interval=1d&token=${BRAPI_TOKEN}`;
@@ -35,20 +37,6 @@ async function fetchWeekly(ticker) {
   } catch { return null; }
 }
 
-function getUltimoDividendo(result) {
-  try {
-    const divs = result?.dividendsData?.cashDividends;
-    if (divs && divs.length > 0) {
-      const sorted = [...divs].sort((a, b) =>
-        new Date(b.paymentDate || b.approvedOn || 0) -
-        new Date(a.paymentDate || a.approvedOn || 0)
-      );
-      return sorted[0].rate ?? sorted[0].amount ?? null;
-    }
-    return result?.summaryProfile?.lastDividendValue ?? null;
-  } catch { return null; }
-}
-
 async function upsertSupabase(rows) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/fiis_mercado`, {
     method: 'POST',
@@ -60,14 +48,11 @@ async function upsertSupabase(rows) {
     },
     body: JSON.stringify(rows)
   });
-  if (!res.ok) throw new Error(`Supabase erro ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new Error(`Supabase ${res.status}: ${await res.text()}`);
 }
 
-// Aguarda N ms (evita rate limit)
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
 async function main() {
-  console.log(`[${new Date().toISOString()}] Iniciando atualização de ${TICKERS.length} tickers...`);
+  console.log(`[${new Date().toISOString()}] Iniciando ${TICKERS.length} tickers...`);
 
   const rows = [];
 
@@ -76,12 +61,17 @@ async function main() {
       const r = await fetchTicker(ticker);
       if (!r) { console.log(`  ${ticker}: sem dados`); continue; }
 
-      const div   = getUltimoDividendo(r);
       const preco = r.regularMarketPrice ?? null;
-      const dyPct = (div && preco) ? parseFloat(((div / preco) * 100).toFixed(4)) : null;
 
-      // Var. semanal (segunda chamada por ticker)
-      await sleep(300);
+      // Dividendo: brapi retorna no campo regularMarketPrice do summaryProfile
+      // ou diretamente como dividendYield + dividendRate quando disponível
+      const divRate  = r.dividendRate  ?? null; // valor absoluto R$
+      const divYield = r.dividendYield ?? null; // % anual
+      // Estima último dividendo mensal: dividendRate anual / 12
+      const ultimoDiv = divRate ? parseFloat((divRate / 12).toFixed(4)) : null;
+      const dyMensal  = (ultimoDiv && preco) ? parseFloat(((ultimoDiv / preco) * 100).toFixed(4)) : null;
+
+      await sleep(400);
       const varSem = await fetchWeekly(ticker);
 
       rows.push({
@@ -89,20 +79,20 @@ async function main() {
         preco_atual:  preco,
         var_dia:      r.regularMarketChangePercent ?? null,
         var_semanal:  varSem,
-        ultimo_div:   div,
-        dy_percent:   dyPct,
+        ultimo_div:   ultimoDiv,
+        dy_percent:   dyMensal,
         atualizado_em: new Date().toISOString()
       });
 
-      console.log(`  ${ticker}: R$${preco} | div: ${div} | DY: ${dyPct}% | sem: ${varSem}%`);
-      await sleep(300); // pausa entre tickers
+      console.log(`  ${ticker}: R$${preco} | div: ${ultimoDiv} | DY: ${dyMensal}%`);
+      await sleep(400);
     } catch (e) {
       console.error(`  ${ticker}: ERRO — ${e.message}`);
     }
   }
 
   if (rows.length === 0) {
-    console.error('Nenhum dado coletado.');
+    console.error('Nenhum dado coletado. Verifique o BRAPI_TOKEN.');
     process.exit(1);
   }
 
@@ -110,7 +100,7 @@ async function main() {
     await upsertSupabase(rows);
     console.log(`\n✓ ${rows.length} tickers salvos no Supabase`);
   } catch (e) {
-    console.error('Erro ao salvar no Supabase:', e.message);
+    console.error('Erro Supabase:', e.message);
     process.exit(1);
   }
 }
