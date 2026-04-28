@@ -10,9 +10,9 @@ const TICKERS = [
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// Plano gratuito brapi: sem módulos extras, só dados básicos de cotação
+// Busca cotação + dividendos (flag dividends=true, disponível no plano gratuito)
 async function fetchTicker(ticker) {
-  const url = `https://brapi.dev/api/quote/${ticker}?token=${BRAPI_TOKEN}`;
+  const url = `https://brapi.dev/api/quote/${ticker}?dividends=true&token=${BRAPI_TOKEN}`;
   const res = await fetch(url, {
     headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' }
   });
@@ -34,6 +34,26 @@ async function fetchWeekly(ticker) {
     const newest = prices[prices.length - 1].close;
     if (!oldest || !newest) return null;
     return parseFloat((((newest - oldest) / oldest) * 100).toFixed(4));
+  } catch { return null; }
+}
+
+function getUltimoDividendo(result) {
+  try {
+    // Com dividends=true, brapi retorna result.dividendsData.cashDividends
+    const divs = result?.dividendsData?.cashDividends;
+    if (divs && divs.length > 0) {
+      const sorted = [...divs].sort((a, b) =>
+        new Date(b.paymentDate || b.approvedOn || 0) -
+        new Date(a.paymentDate || a.approvedOn || 0)
+      );
+      const ultimo = sorted[0];
+      return ultimo.rate ?? ultimo.amount ?? ultimo.value ?? null;
+    }
+    // Fallback: dividendRate anual / 12
+    if (result?.dividendRate) {
+      return parseFloat((result.dividendRate / 12).toFixed(4));
+    }
+    return null;
   } catch { return null; }
 }
 
@@ -61,26 +81,22 @@ async function main() {
       const r = await fetchTicker(ticker);
       if (!r) { console.log(`  ${ticker}: sem dados`); continue; }
 
-      const preco = r.regularMarketPrice ?? null;
-
-      // Dividendo: brapi retorna no campo regularMarketPrice do summaryProfile
-      // ou diretamente como dividendYield + dividendRate quando disponível
-      const divRate  = r.dividendRate  ?? null; // valor absoluto R$
-      const divYield = r.dividendYield ?? null; // % anual
-      // Estima último dividendo mensal: dividendRate anual / 12
-      const ultimoDiv = divRate ? parseFloat((divRate / 12).toFixed(4)) : null;
-      const dyMensal  = (ultimoDiv && preco) ? parseFloat(((ultimoDiv / preco) * 100).toFixed(4)) : null;
+      const preco     = r.regularMarketPrice ?? null;
+      const ultimoDiv = getUltimoDividendo(r);
+      const dyMensal  = (ultimoDiv && preco)
+        ? parseFloat(((ultimoDiv / preco) * 100).toFixed(4))
+        : null;
 
       await sleep(400);
       const varSem = await fetchWeekly(ticker);
 
       rows.push({
         ticker,
-        preco_atual:  preco,
-        var_dia:      r.regularMarketChangePercent ?? null,
-        var_semanal:  varSem,
-        ultimo_div:   ultimoDiv,
-        dy_percent:   dyMensal,
+        preco_atual:   preco,
+        var_dia:       r.regularMarketChangePercent ?? null,
+        var_semanal:   varSem,
+        ultimo_div:    ultimoDiv,
+        dy_percent:    dyMensal,
         atualizado_em: new Date().toISOString()
       });
 
@@ -92,7 +108,7 @@ async function main() {
   }
 
   if (rows.length === 0) {
-    console.error('Nenhum dado coletado. Verifique o BRAPI_TOKEN.');
+    console.error('Nenhum dado coletado.');
     process.exit(1);
   }
 
