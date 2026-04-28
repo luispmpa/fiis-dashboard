@@ -10,9 +10,8 @@ const TICKERS = [
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// Busca cotação + dividendos (flag dividends=true, disponível no plano gratuito)
 async function fetchTicker(ticker) {
-  const url = `https://brapi.dev/api/quote/${ticker}?dividends=true&token=${BRAPI_TOKEN}`;
+  const url = `https://brapi.dev/api/quote/${ticker}?token=${BRAPI_TOKEN}`;
   const res = await fetch(url, {
     headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' }
   });
@@ -21,7 +20,6 @@ async function fetchTicker(ticker) {
   return json?.results?.[0] ?? null;
 }
 
-// Var. semanal via histórico de 5 dias
 async function fetchWeekly(ticker) {
   try {
     const url = `https://brapi.dev/api/quote/${ticker}?range=5d&interval=1d&token=${BRAPI_TOKEN}`;
@@ -37,23 +35,13 @@ async function fetchWeekly(ticker) {
   } catch { return null; }
 }
 
-function getUltimoDividendo(result) {
+async function fetchDividendoMfinance(ticker) {
   try {
-    // Com dividends=true, brapi retorna result.dividendsData.cashDividends
-    const divs = result?.dividendsData?.cashDividends;
-    if (divs && divs.length > 0) {
-      const sorted = [...divs].sort((a, b) =>
-        new Date(b.paymentDate || b.approvedOn || 0) -
-        new Date(a.paymentDate || a.approvedOn || 0)
-      );
-      const ultimo = sorted[0];
-      return ultimo.rate ?? ultimo.amount ?? ultimo.value ?? null;
-    }
-    // Fallback: dividendRate anual / 12
-    if (result?.dividendRate) {
-      return parseFloat((result.dividendRate / 12).toFixed(4));
-    }
-    return null;
+    const url = `https://mfinance.com.br/api/v1/fiis/${ticker}`;
+    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' } });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json?.lastDividend ?? json?.dividendYield ?? null;
   } catch { return null; }
 }
 
@@ -74,16 +62,12 @@ async function upsertSupabase(rows) {
 async function main() {
   console.log(`[${new Date().toISOString()}] Iniciando ${TICKERS.length} tickers...`);
 
-  // TESTE TEMPORÁRIO
+  // Teste mfinance
   const test = await fetch('https://mfinance.com.br/api/v1/fiis/MXRF11', {
     headers: { 'User-Agent': 'Mozilla/5.0' }
   });
   console.log('mfinance status:', test.status);
   console.log('mfinance body:', (await test.text()).substring(0, 300));
-  // FIM DO TESTE
-
-  const rows = [];
-  ...
 
   const rows = [];
 
@@ -92,14 +76,16 @@ async function main() {
       const r = await fetchTicker(ticker);
       if (!r) { console.log(`  ${ticker}: sem dados`); continue; }
 
-      const preco     = r.regularMarketPrice ?? null;
-      const ultimoDiv = getUltimoDividendo(r);
-      const dyMensal  = (ultimoDiv && preco)
-        ? parseFloat(((ultimoDiv / preco) * 100).toFixed(4))
-        : null;
+      const preco = r.regularMarketPrice ?? null;
 
       await sleep(400);
       const varSem = await fetchWeekly(ticker);
+
+      await sleep(400);
+      const ultimoDiv = await fetchDividendoMfinance(ticker);
+      const dyMensal = (ultimoDiv && preco)
+        ? parseFloat(((ultimoDiv / preco) * 100).toFixed(4))
+        : null;
 
       rows.push({
         ticker,
