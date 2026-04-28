@@ -1,0 +1,26 @@
+name: Atualizar dados FIIs
+
+on:
+  schedule:
+    - cron: '0 14 * * 1-5'   # 11h BRT (14h UTC), dias úteis
+  workflow_dispatch:           # permite rodar manualmente
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar dependências
+        run: npm install node-fetch
+
+      - name: Atualizar dados
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: node scripts/update-fiis.js
