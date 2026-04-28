@@ -35,7 +35,6 @@ async function fetchWeekly(ticker) {
   } catch { return null; }
 }
 
-// Scraping do FundsExplorer — extrai último dividendo do HTML
 async function fetchDividendoFE(ticker) {
   try {
     const url = `https://www.fundsexplorer.com.br/funds/${ticker.toUpperCase()}`;
@@ -49,34 +48,54 @@ async function fetchDividendoFE(ticker) {
     if (!res.ok) return null;
     const html = await res.text();
 
-    // Tenta extrair valor após "Último Dividendo" ou "último rendimento"
-    // Padrões comuns no HTML do FundsExplorer:
+    // Log diagnóstico para HGLG11 e MCCI11
+    if (ticker === 'HGLG11' || ticker === 'MCCI11' || ticker === 'KNRI11') {
+      // Mostra todos os trechos com valores monetários próximos a "ltimo"
+      const idx = html.toLowerCase().indexOf('ltimo');
+      if (idx > 0) {
+        console.log(`[DIAG ${ticker}] trecho "último": ${html.substring(idx - 20, idx + 400).replace(/\s+/g, ' ')}`);
+      }
+      // Mostra também todos os números R$ no HTML
+      const matches = [...html.matchAll(/R\$\s*([\d]+[.,][\d]+)/g)].slice(0, 10);
+      console.log(`[DIAG ${ticker}] valores R$ encontrados: ${matches.map(m => m[1]).join(', ')}`);
+    }
+
+    // Padrão: procura especificamente na estrutura de dados do FundsExplorer
+    // Tenta JSON embutido no HTML (Next.js / __NEXT_DATA__)
+    const nextData = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+    if (nextData) {
+      try {
+        const data = JSON.parse(nextData[1]);
+        const str = JSON.stringify(data);
+        // Procura lastDividend ou similar no JSON
+        const m = str.match(/"lastDividend[^"]*"\s*:\s*([\d.]+)/)
+               || str.match(/"dividendValue"\s*:\s*([\d.]+)/)
+               || str.match(/"lastPayment"\s*:\s*([\d.]+)/);
+        if (m) {
+          const val = parseFloat(m[1]);
+          if (val > 0 && val < 50) return val;
+        }
+      } catch {}
+    }
+
+    // Fallback: regex no HTML buscando valor após "Último Rendimento" ou similar
     const patterns = [
-      /[Úú]ltimo\s+[Dd]ividendo[\s\S]{0,200}?R\$\s*([\d]+[.,][\d]+)/,
-      /[Úú]ltimo\s+[Rr]endimento[\s\S]{0,200}?R\$\s*([\d]+[.,][\d]+)/,
+      /[Úú]ltimo\s+[Rr]endimento[\s\S]{0,500}?([\d]+[.,][\d]{2,4})/,
+      /[Úú]ltimo\s+[Dd]ividendo[\s\S]{0,500}?([\d]+[.,][\d]{2,4})/,
       /"lastDividend"\s*:\s*([\d.]+)/,
-      /"dividend"\s*:\s*([\d.]+)/,
-      /dividendo[\s\S]{0,100}?([\d]+[.,][\d]{2,4})/i,
+      /dividend[^"]{0,50}?([\d]+[.,][\d]{2,4})/i,
     ];
 
     for (const pattern of patterns) {
       const match = html.match(pattern);
       if (match) {
         const val = parseFloat(match[1].replace(',', '.'));
-        if (val > 0 && val < 100) { // sanity check: dividendo FII entre 0 e 100
-          console.log(`  [FE] ${ticker}: encontrou dividendo ${val} com padrão ${pattern}`);
+        if (val > 0 && val < 50) {
           return val;
         }
       }
     }
 
-    // Log para diagnóstico: mostra trecho do HTML próximo a "dividendo"
-    const idx = html.toLowerCase().indexOf('dividendo');
-    if (idx > 0) {
-      console.log(`  [FE] ${ticker}: trecho HTML → ${html.substring(idx, idx + 300).replace(/\s+/g, ' ')}`);
-    } else {
-      console.log(`  [FE] ${ticker}: palavra "dividendo" não encontrada no HTML`);
-    }
     return null;
   } catch (e) {
     console.log(`  [FE] ${ticker}: ERRO — ${e.message}`);
