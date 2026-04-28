@@ -3,12 +3,20 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const BRAPI_TOKEN  = process.env.BRAPI_TOKEN || '';
 
-const TICKERS = [
-  'MXRF11','HGLG11','KNRI11','XPML11','MCCI11',
-  'KNCR11','TRXF11','BTLG11','HGRU11','XPLG11','VISC11'
-];
-
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// Busca tickers dinamicamente do Supabase
+async function getTickers() {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/fiis_mercado?select=ticker&order=ticker`, {
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`
+    }
+  });
+  if (!res.ok) throw new Error(`Erro ao buscar tickers: ${res.status}`);
+  const data = await res.json();
+  return data.map(r => r.ticker);
+}
 
 async function fetchTicker(ticker) {
   const url = `https://brapi.dev/api/quote/${ticker}?token=${BRAPI_TOKEN}`;
@@ -48,59 +56,22 @@ async function fetchDividendoFE(ticker) {
     if (!res.ok) return null;
     const html = await res.text();
 
-    // Log diagnóstico para HGLG11 e MCCI11
-    if (ticker === 'HGLG11' || ticker === 'MCCI11' || ticker === 'KNRI11') {
-      // Mostra todos os trechos com valores monetários próximos a "ltimo"
-      const idx = html.toLowerCase().indexOf('ltimo');
-      if (idx > 0) {
-        console.log(`[DIAG ${ticker}] trecho "último": ${html.substring(idx - 20, idx + 400).replace(/\s+/g, ' ')}`);
-      }
-      // Mostra também todos os números R$ no HTML
-      const matches = [...html.matchAll(/R\$\s*([\d]+[.,][\d]+)/g)].slice(0, 10);
-      console.log(`[DIAG ${ticker}] valores R$ encontrados: ${matches.map(m => m[1]).join(', ')}`);
-    }
-
-    // Padrão: procura especificamente na estrutura de dados do FundsExplorer
-    // Tenta JSON embutido no HTML (Next.js / __NEXT_DATA__)
-    const nextData = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
-    if (nextData) {
-      try {
-        const data = JSON.parse(nextData[1]);
-        const str = JSON.stringify(data);
-        // Procura lastDividend ou similar no JSON
-        const m = str.match(/"lastDividend[^"]*"\s*:\s*([\d.]+)/)
-               || str.match(/"dividendValue"\s*:\s*([\d.]+)/)
-               || str.match(/"lastPayment"\s*:\s*([\d.]+)/);
-        if (m) {
-          const val = parseFloat(m[1]);
-          if (val > 0 && val < 50) return val;
-        }
-      } catch {}
-    }
-
-    // Fallback: regex no HTML buscando valor após "Último Rendimento" ou similar
     const patterns = [
-      /[Úú]ltimo\s+[Rr]endimento[\s\S]{0,500}?([\d]+[.,][\d]{2,4})/,
-      /[Úú]ltimo\s+[Dd]ividendo[\s\S]{0,500}?([\d]+[.,][\d]{2,4})/,
+      /[Úú]ltimo\s+Rendimento[\s\S]{0,300}?<b>\s*([\d]+[.,][\d]{2,4})\s*<\/b>/,
+      /[Úú]ltimo\s+Dividendo[\s\S]{0,300}?<b>\s*([\d]+[.,][\d]{2,4})\s*<\/b>/,
       /"lastDividend"\s*:\s*([\d.]+)/,
-      /dividend[^"]{0,50}?([\d]+[.,][\d]{2,4})/i,
+      /[Úú]ltimo\s+Rendimento[\s\S]{0,500}?R\$\s*<\/small>\s*<b>\s*([\d]+[.,][\d]{2,4})/,
     ];
 
     for (const pattern of patterns) {
       const match = html.match(pattern);
       if (match) {
         const val = parseFloat(match[1].replace(',', '.'));
-        if (val > 0 && val < 50) {
-          return val;
-        }
+        if (val > 0 && val < 50) return val;
       }
     }
-
     return null;
-  } catch (e) {
-    console.log(`  [FE] ${ticker}: ERRO — ${e.message}`);
-    return null;
-  }
+  } catch { return null; }
 }
 
 async function upsertSupabase(rows) {
@@ -118,7 +89,9 @@ async function upsertSupabase(rows) {
 }
 
 async function main() {
-  console.log(`[${new Date().toISOString()}] Iniciando ${TICKERS.length} tickers...`);
+  // Lê tickers dinamicamente do Supabase
+  const TICKERS = await getTickers();
+  console.log(`[${new Date().toISOString()}] Iniciando ${TICKERS.length} tickers: ${TICKERS.join(', ')}`);
 
   const rows = [];
 
