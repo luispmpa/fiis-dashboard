@@ -74,6 +74,17 @@ async function upsertSupabase(rows) {
 async function main() {
   console.log(`[${new Date().toISOString()}] Iniciando ${TICKERS.length} tickers...`);
 
+  // TESTE TEMPORÁRIO
+  const test = await fetch('https://mfinance.com.br/api/v1/fiis/MXRF11', {
+    headers: { 'User-Agent': 'Mozilla/5.0' }
+  });
+  console.log('mfinance status:', test.status);
+  console.log('mfinance body:', (await test.text()).substring(0, 300));
+  // FIM DO TESTE
+
+  const rows = [];
+  ...
+
   const rows = [];
 
   for (const ticker of TICKERS) {
