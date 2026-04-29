@@ -22,7 +22,9 @@ from googleapiclient.errors import HttpError
 logger = logging.getLogger(__name__)
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
-XP_SENDER = "no-reply@xpi.com.br"
+XP_SENDER_DIRECT = "no-reply@xpi.com.br"
+# Emails forwarded from Hotmail arrive with this sender in Gmail
+XP_SENDER_FORWARDED = "luispaulo.carraro@hotmail.com"
 PROCESSED_LABEL = "xp-processado"
 
 
@@ -85,8 +87,10 @@ def get_unprocessed_emails(service, processed_label_id: str) -> List[dict]:
     Return messages from XP_SENDER with PDF attachments not yet labeled
     as PROCESSED_LABEL.
     """
+    # Catches both direct XP emails and emails forwarded via Hotmail
     query = (
-        f"from:{XP_SENDER} has:attachment filename:pdf "
+        f"(from:{XP_SENDER_DIRECT} OR from:{XP_SENDER_FORWARDED}) "
+        f"has:attachment filename:pdf "
         f"-label:{PROCESSED_LABEL}"
     )
     logger.info(f"Buscando e-mails no Gmail: {query}")
