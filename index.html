@@ -199,6 +199,34 @@ input.cell-input:focus { border-color:var(--blue); }
 .evs-estimated { color:var(--muted); background:var(--bg2); }
 .ev-empty { padding:40px 16px; text-align:center; color:var(--muted); }
 .ev-empty p { font-size:13px; margin-top:6px; line-height:1.6; }
+/* === IR Calculator === */
+.ir-wrap { padding:24px 32px; }
+.ir-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+.ir-header h2 { font-family:var(--mono); font-size:16px; font-weight:500; }
+.ir-month-bar { display:flex; align-items:center; gap:10px; }
+.ir-month-bar label { font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+.ir-month-bar select { background:var(--bg2); border:1px solid var(--line2); color:var(--text); font-family:var(--mono); font-size:12px; padding:5px 10px; border-radius:7px; outline:none; cursor:pointer; }
+.ir-month-bar select:focus { border-color:var(--accent); }
+.ir-darf-box { background:var(--bg1); border:1px solid var(--accent); border-radius:12px; padding:20px 24px; margin-bottom:24px; display:flex; align-items:center; justify-content:space-between; }
+.ir-darf-left .ir-darf-label { font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); margin-bottom:6px; }
+.ir-darf-left .ir-darf-amount { font-family:var(--mono); font-size:32px; font-weight:500; color:var(--accent); }
+.ir-darf-left .ir-darf-detail { font-size:11px; color:var(--muted); margin-top:4px; }
+.ir-darf-right { font-size:11px; color:var(--muted2); text-align:right; line-height:1.6; }
+.ir-ok-box { background:var(--bg1); border:1px solid var(--line); border-radius:12px; padding:14px 20px; margin-bottom:24px; color:var(--muted2); font-size:13px; }
+.ir-grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px; }
+.ir-card { background:var(--bg1); border:1px solid var(--line); border-radius:12px; padding:20px; }
+.ir-card-title { font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); padding-bottom:12px; border-bottom:1px solid var(--line); margin-bottom:12px; }
+.ir-row { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); }
+.ir-row:last-child { border-bottom:none; }
+.ir-row-label { font-size:12px; color:var(--muted2); }
+.ir-row-value { font-family:var(--mono); font-size:13px; }
+.ir-ops-section { margin-top:4px; }
+table.ir-ops { width:100%; border-collapse:collapse; }
+table.ir-ops th { padding:9px 14px; font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); text-align:right; border-bottom:1px solid var(--line2); background:var(--bg1); white-space:nowrap; }
+table.ir-ops th:first-child, table.ir-ops th:nth-child(2), table.ir-ops th:nth-child(3) { text-align:left; }
+table.ir-ops td { padding:10px 14px; font-family:var(--mono); font-size:12px; text-align:right; border-bottom:1px solid var(--line); }
+table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-child(3) { text-align:left; font-family:var(--sans); }
+.ir-empty-msg { padding:40px; text-align:center; color:var(--muted); font-size:13px; }  
 </style>
 </head>
 <body>
@@ -280,10 +308,57 @@ input.cell-input:focus { border-color:var(--blue); }
 </div>
 
 <div id="page-ir" class="page">
-  <div class="coming-soon">
-    <span class="cs-icon">🧾</span>
-    <h3>Calculadora de IR</h3>
-    <p>Apuração mensal de ganhos, cálculo do DARF para FIIs (20%) e Ações (15%), controle de prejuízos acumulados. Em breve.</p>
+  <div class="ir-wrap">
+    <div class="ir-header">
+      <h2>IR — Imposto de Renda</h2>
+      <div class="ir-month-bar">
+        <label>Competência:</label>
+        <select id="ir-month-sel" onchange="renderIR()"></select>
+      </div>
+    </div>
+    <div id="ir-darf-box" class="ir-darf-box" style="display:none">
+      <div class="ir-darf-left">
+        <div class="ir-darf-label">DARF a recolher — <span id="ir-competencia">—</span></div>
+        <div class="ir-darf-amount" id="ir-total-ir">R$ 0,00</div>
+        <div class="ir-darf-detail" id="ir-darf-detail">—</div>
+      </div>
+      <div class="ir-darf-right">Vencimento: último dia útil do mês seguinte<br>Código DARF: 6015</div>
+    </div>
+    <div id="ir-ok-box" class="ir-ok-box" style="display:none">Nenhum imposto a recolher neste mês.</div>
+    <div id="ir-loading-msg" style="padding:40px;text-align:center;color:var(--muted);font-family:var(--mono);font-size:12px">carregando...</div>
+    <div id="ir-main" style="display:none">
+      <div class="ir-grid2">
+        <div class="ir-card">
+          <div class="ir-card-title">FIIs — Resumo do mês</div>
+          <div class="ir-row"><span class="ir-row-label">Vendas brutas</span><span class="ir-row-value" id="ir-fii-vendas">—</span></div>
+          <div class="ir-row"><span class="ir-row-label">Custo (PM × qtd)</span><span class="ir-row-value" id="ir-fii-custo">—</span></div>
+          <div class="ir-row"><span class="ir-row-label">Ganho bruto</span><span class="ir-row-value" id="ir-fii-ganho">—</span></div>
+          <div class="ir-row"><span class="ir-row-label">Prejuízo compensado</span><span class="ir-row-value" id="ir-fii-prej">—</span></div>
+          <div class="ir-row"><span class="ir-row-label">Base de cálculo</span><span class="ir-row-value" id="ir-fii-base">—</span></div>
+          <div class="ir-row"><span class="ir-row-label"><strong>IR (20%)</strong></span><span class="ir-row-value" id="ir-fii-ir">—</span></div>
+        </div>
+        <div class="ir-card">
+          <div class="ir-card-title">Ações — Resumo do mês</div>
+          <div class="ir-row"><span class="ir-row-label">Vendas brutas</span><span class="ir-row-value" id="ir-ac-vendas">—</span></div>
+          <div class="ir-row"><span class="ir-row-label">Custo (PM × qtd)</span><span class="ir-row-value" id="ir-ac-custo">—</span></div>
+          <div class="ir-row"><span class="ir-row-label">Ganho bruto</span><span class="ir-row-value" id="ir-ac-ganho">—</span></div>
+          <div class="ir-row"><span class="ir-row-label">Prejuízo compensado</span><span class="ir-row-value" id="ir-ac-prej">—</span></div>
+          <div class="ir-row"><span class="ir-row-label">Base de cálculo</span><span class="ir-row-value" id="ir-ac-base">—</span></div>
+          <div class="ir-row"><span class="ir-row-label"><strong>IR (15%)</strong></span><span class="ir-row-value" id="ir-ac-ir">—</span></div>
+        </div>
+      </div>
+      <div class="ir-ops-section">
+        <div class="ir-card-title" style="padding:0 0 12px">Operações de venda</div>
+        <table class="ir-ops">
+          <thead><tr>
+            <th>Ticker</th><th>Tipo</th><th>Data</th>
+            <th>Qtd</th><th>Preço venda</th><th>Preço médio</th><th>Resultado</th>
+          </tr></thead>
+          <tbody id="ir-ops-body"></tbody>
+        </table>
+        <div id="ir-ops-empty" class="ir-empty-msg" style="display:none">Nenhuma venda neste mês.</div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -783,6 +858,7 @@ document.getElementById('nav-tabs').querySelectorAll('.nav-tab').forEach(tab => 
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-' + page).classList.add('active');
     if (page === 'agenda') loadAgenda();
+    if (page === 'ir') loadIR();
   });
 });
 // ── Agenda ──────────────────────────────────────────────────────────
@@ -894,7 +970,167 @@ function _renderEventRow(e) {
     <span class="ev-status-pill ${stClass}">${stLabel}</span>
   </div>`;
 }
+// ============================================================
+// IR Calculator
+// ============================================================
+let irState = null;
 
+async function loadIR() {
+  document.getElementById('ir-loading-msg').style.display = 'block';
+  document.getElementById('ir-main').style.display        = 'none';
+  document.getElementById('ir-darf-box').style.display    = 'none';
+  document.getElementById('ir-ok-box').style.display      = 'none';
+
+  try {
+    const [fiiNegs, acNegs, losses] = await Promise.all([
+      fetch(SUPA_URL+'/rest/v1/fiis_negociacoes?select=*&order=data_negociacao.asc',{headers:H}).then(r=>r.json()),
+      fetch(SUPA_URL+'/rest/v1/acoes_negociacoes?select=*&order=data_negociacao.asc',{headers:H}).then(r=>r.json()),
+      fetch(SUPA_URL+'/rest/v1/ir_accumulated_losses?select=*',{headers:H}).then(r=>r.json()).catch(()=>[]),
+    ]);
+
+    const fiiLoss = Number((Array.isArray(losses)?losses:[]).find(r=>r.category==='fii')?.amount ?? 0);
+    const acLoss  = Number((Array.isArray(losses)?losses:[]).find(r=>r.category==='acao')?.amount ?? 0);
+
+    const fiiOps = _irComputeOps(Array.isArray(fiiNegs) ? fiiNegs : [], 'fii');
+    const acOps  = _irComputeOps(Array.isArray(acNegs)  ? acNegs  : [], 'acao');
+
+    const months = [...new Set([...fiiOps, ...acOps].map(o=>o.month))].sort().reverse();
+
+    const sel = document.getElementById('ir-month-sel');
+    sel.innerHTML = months.length
+      ? months.map(m=>`<option value="${m}">${_irFmtYM(m)}</option>`).join('')
+      : '<option value="">— sem vendas —</option>';
+
+    irState = { fiiOps, acOps, months, fiiLoss, acLoss };
+  } catch(e) {
+    console.error('loadIR:', e);
+  }
+
+  document.getElementById('ir-loading-msg').style.display = 'none';
+  document.getElementById('ir-main').style.display        = 'block';
+  renderIR();
+}
+
+function _irComputeOps(negs, cat) {
+  const book = {};
+  const ops  = [];
+  for (const n of negs) {
+    const t     = n.ticker;
+    if (!book[t]) book[t] = { qty:0, totalCost:0 };
+    const qty   = Number(n.quantidade    ?? 0);
+    const preco = Number(n.preco_unitario ?? 0);
+    const tipo  = (n.tipo || '').toLowerCase();
+    if (tipo === 'c' || tipo === 'compra') {
+      book[t].totalCost += qty * preco;
+      book[t].qty       += qty;
+    } else if (tipo === 'v' || tipo === 'venda') {
+      const pm      = book[t].qty > 0 ? book[t].totalCost / book[t].qty : 0;
+      const custo   = pm * qty;
+      const receita = preco * qty;
+      const date    = (n.data_negociacao ?? '').slice(0, 10);
+      const month   = date.slice(0, 7);
+      ops.push({ ticker:t, cat, date, month, qty, preco, pm, custo, receita, resultado: receita - custo });
+      book[t].qty       = Math.max(0, book[t].qty - qty);
+      book[t].totalCost = book[t].qty * pm;
+    }
+  }
+  return ops;
+}
+
+function _irFmtYM(ym) {
+  if (!ym) return '—';
+  const [y, m] = ym.split('-');
+  const mn = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  return `${mn[+m - 1]}/${y}`;
+}
+
+function renderIR() {
+  if (!irState) return;
+  const month = document.getElementById('ir-month-sel').value;
+  const fOps  = irState.fiiOps.filter(o => o.month === month);
+  const aOps  = irState.acOps.filter(o  => o.month === month);
+
+  // FII: 20% sobre ganho líquido (sem isenção)
+  const fVendas = fOps.reduce((s,o) => s + o.receita, 0);
+  const fCusto  = fOps.reduce((s,o) => s + o.custo,   0);
+  const fGanho  = fVendas - fCusto;
+  const fBase   = Math.max(0, fGanho - irState.fiiLoss);
+  const fIR     = fBase * 0.20;
+
+  // Ações: 15% — isento se vendas totais do mês ≤ R$20.000
+  const aVendas = aOps.reduce((s,o) => s + o.receita, 0);
+  const aCusto  = aOps.reduce((s,o) => s + o.custo,   0);
+  const aGanho  = aVendas - aCusto;
+  const isento  = aVendas <= 20000;
+  const aBase   = isento ? 0 : Math.max(0, aGanho - irState.acLoss);
+  const aIR     = aBase * 0.15;
+  const totalIR = fIR + aIR;
+
+  const _s = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+  const _c = (id, val) => {
+    const e = document.getElementById(id); if (!e) return;
+    e.textContent = fmtR(val);
+    e.className   = 'ir-row-value ' + (val >= 0 ? 'pl-pos' : 'pl-neg');
+  };
+
+  _s('ir-fii-vendas', fmtR(fVendas));
+  _s('ir-fii-custo',  fmtR(fCusto));
+  _c('ir-fii-ganho',  fGanho);
+  _s('ir-fii-prej',   irState.fiiLoss > 0 ? fmtR(-irState.fiiLoss) : '—');
+  _s('ir-fii-base',   fmtR(fBase));
+  _s('ir-fii-ir',     fIR > 0.005 ? fmtR(fIR) : '—');
+  if (fIR > 0.005) { const e = document.getElementById('ir-fii-ir'); if(e) e.className = 'ir-row-value pl-neg'; }
+
+  _s('ir-ac-vendas', fmtR(aVendas));
+  _s('ir-ac-custo',  fmtR(aCusto));
+  _c('ir-ac-ganho',  aGanho);
+  _s('ir-ac-prej',   irState.acLoss > 0 ? fmtR(-irState.acLoss) : '—');
+  _s('ir-ac-base',   isento ? `isento (${fmtR(aVendas)} ≤ R$ 20k)` : fmtR(aBase));
+  _s('ir-ac-ir',     aIR > 0.005 ? fmtR(aIR) : isento ? 'isento' : '—');
+  if (aIR > 0.005) { const e = document.getElementById('ir-ac-ir'); if(e) e.className = 'ir-row-value pl-neg'; }
+
+  // DARF / ok box
+  if (totalIR > 0.005) {
+    document.getElementById('ir-darf-box').style.display = 'flex';
+    document.getElementById('ir-ok-box').style.display   = 'none';
+    document.getElementById('ir-total-ir').textContent   = fmtR(totalIR);
+    document.getElementById('ir-competencia').textContent = _irFmtYM(month);
+    const parts = [];
+    if (fIR > 0.005) parts.push('FIIs: ' + fmtR(fIR));
+    if (aIR > 0.005) parts.push('Ações: ' + fmtR(aIR));
+    document.getElementById('ir-darf-detail').textContent = parts.join('  +  ');
+  } else {
+    document.getElementById('ir-darf-box').style.display = 'none';
+    document.getElementById('ir-ok-box').style.display   = 'block';
+  }
+
+  // Tabela de operações
+  const all = [...fOps, ...aOps].sort((a,b) => a.date.localeCompare(b.date));
+  const tbody = document.getElementById('ir-ops-body');
+  const empty = document.getElementById('ir-ops-empty');
+  if (!all.length) {
+    tbody.innerHTML        = '';
+    empty.style.display    = 'block';
+  } else {
+    empty.style.display = 'none';
+    tbody.innerHTML = all.map(o => {
+      const cls   = o.resultado >= 0 ? 'pl-pos' : 'pl-neg';
+      const badge = o.cat === 'fii'
+        ? '<span class="cat-fii">FII</span>'
+        : '<span class="cat-acao">AÇÃO</span>';
+      const dt = o.date ? o.date.split('-').reverse().join('/') : '—';
+      return `<tr>
+        <td style="font-family:var(--mono);color:var(--blue)">${o.ticker}</td>
+        <td>${badge}</td>
+        <td>${dt}</td>
+        <td style="font-family:var(--mono)">${o.qty}</td>
+        <td>${fmtR(o.preco)}</td>
+        <td>${fmtR(o.pm)}</td>
+        <td class="${cls}">${fmtR(o.resultado)}</td>
+      </tr>`;
+    }).join('');
+  }
+}
 load();
 // recarrega dados do Supabase a cada 60 minutos
 setInterval(() => load(), 60 * 60 * 1000);
