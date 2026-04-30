@@ -54,6 +54,10 @@ td { padding:14px 20px; font-family:var(--mono); font-size:12px; text-align:righ
 td:first-child { text-align:left; }
 td:nth-child(2) { font-family:var(--sans); font-size:13px; text-align:left; color:var(--muted2); }
 td:nth-child(3) { text-align:left; }
+th.sortable { cursor:pointer; user-select:none; }
+th.sortable:hover { color:var(--text); }
+th.sort-asc::after { content:' ↑'; color:var(--accent); }
+th.sort-desc::after { content:' ↓'; color:var(--accent); }
 
 .ticker-label { font-weight:500; color:var(--blue); font-size:13px; letter-spacing:.04em; }
 .seg-pill { font-size:10px; font-weight:500; padding:2px 8px; border-radius:3px; letter-spacing:.04em; font-family:var(--sans); }
@@ -181,6 +185,7 @@ const fmtN = v => v!=null ? Number(v).toLocaleString('pt-BR',{minimumFractionDig
 const segClass = s => ({'Papel/CRI':'seg-papel','Logística':'seg-log','Híbrido':'seg-hibrido','Shoppings':'seg-shop','Varejo':'seg-varejo'})[s]||'';
 
 let allData=[], cartData={}, currentTab='all', searchTerm='', previewData=null;
+let sortCol=null, sortDir=1; // sortDir: 1=asc, -1=desc
 
 async function load() {
   const [mRes,cRes] = await Promise.all([
@@ -220,10 +225,39 @@ function updateSummary() {
   document.getElementById('s-res-sub').textContent=plPct!=null?fmtP(plPct)+' vs. custo':'insira preços médios';
 }
 
+const SORT_KEY = {
+  ticker: r=>r.ticker,
+  nome:   r=>r.nome||'',
+  seg:    r=>r.segmento||'',
+  preco:  r=>Number(r.preco_atual)||0,
+  vd:     r=>Number(r.var_dia)||0,
+  vs:     r=>Number(r.var_semanal)||0,
+  div:    r=>Number(r.ultimo_div)||0,
+  dy:     r=>Number(r.dy_percent)||0,
+  cotas:  r=>Number((cartData[r.ticker]||{}).quantidade)||0,
+  pm:     r=>Number((cartData[r.ticker]||{}).preco_medio)||0,
+  pos:    r=>{const c=cartData[r.ticker]||{};return (Number(c.quantidade)||0)*(Number(r.preco_atual)||0);},
+  pl:     r=>{const c=cartData[r.ticker]||{};const q=Number(c.quantidade)||0,pm2=Number(c.preco_medio)||0,pc=Number(r.preco_atual)||0;return pm2>0?q*pc-q*pm2:null;},
+};
+
+function setSort(col) {
+  if (sortCol===col) sortDir*=-1; else { sortCol=col; sortDir=1; }
+  render();
+}
+
 function render() {
   let rows=[...allData];
   if (currentTab==='cart') rows=rows.filter(r=>{const c=cartData[r.ticker];return c&&Number(c.quantidade)>0;});
   if (searchTerm) { const s=searchTerm.toLowerCase(); rows=rows.filter(r=>r.ticker.toLowerCase().includes(s)||(r.nome||'').toLowerCase().includes(s)||(r.segmento||'').toLowerCase().includes(s)); }
+  if (sortCol && SORT_KEY[sortCol]) {
+    const fn=SORT_KEY[sortCol];
+    rows.sort((a,b)=>{
+      const av=fn(a), bv=fn(b);
+      if (av===null&&bv===null) return 0;
+      if (av===null) return 1; if (bv===null) return -1;
+      return av<bv?-sortDir:av>bv?sortDir:0;
+    });
+  }
 
   const area=document.getElementById('table-area');
   if (rows.length===0) {
@@ -258,8 +292,10 @@ function render() {
     </tr>`;
   }).join('');
 
+  const sc=sortCol, sd=sortDir;
+  function th(label,col,align='right'){const a=align==='left'?'text-align:left':'';const cls=['sortable',sc===col?(sd>0?'sort-asc':'sort-desc'):''].join(' ').trim();return `<th class="${cls}" style="${a}" onclick="setSort('${col}')">${label}</th>`;}
   area.innerHTML=`<div class="table-wrap"><table>
-    <thead><tr><th>Ticker</th><th>Nome</th><th>Segmento</th><th>Preço</th><th>Var. dia</th><th>Var. sem.</th><th>Últ. div.</th><th>DY%</th><th>Cotas</th><th>P. médio</th><th>Posição</th><th>P&L</th><th>Sinal</th><th></th></tr></thead>
+    <thead><tr>${th('Ticker','ticker','left')}${th('Nome','nome','left')}${th('Segmento','seg','left')}${th('Preço','preco')}${th('Var. dia','vd')}${th('Var. sem.','vs')}${th('Últ. div.','div')}${th('DY%','dy')}${th('Cotas','cotas')}${th('P. médio','pm')}${th('Posição','pos')}${th('P&L','pl')}<th>Sinal</th><th></th></tr></thead>
     <tbody>${tbody}</tbody>
   </table></div>`;
 

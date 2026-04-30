@@ -29,7 +29,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-_DAEMON_INTERVAL = 30 * 60  # seconds
+_DAEMON_INTERVAL = 3 * 60 * 60  # seconds (3 hours)
 _PDF_PASSWORD = "097"
 
 
@@ -139,7 +139,7 @@ def run_once() -> int:
 
 
 def run_daemon() -> None:
-    """Run as a long-lived process, calling run_once() every 30 minutes."""
+    """Run as a long-lived process, calling run_once() every 3 hours."""
     logger.info(f"Modo daemon iniciado (intervalo: {_DAEMON_INTERVAL}s)")
     while True:
         try:
@@ -157,7 +157,7 @@ def main() -> None:
     parser.add_argument(
         "--daemon",
         action="store_true",
-        help=f"Executa continuamente a cada {_DAEMON_INTERVAL // 60} minutos",
+        help=f"Executa continuamente a cada {_DAEMON_INTERVAL // 3600} horas",
     )
     args = parser.parse_args()
 
