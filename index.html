@@ -530,8 +530,13 @@ async function confirmDelete() {
   render(); updateSummary();
 }
 
-document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
-  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+document.getElementById('cat-tabs').querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.getElementById('cat-tabs').querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active'); currentCat=t.dataset.cat; sortCol=null; render(); updateSummary();
+}));
+
+document.getElementById('view-tabs').querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.getElementById('view-tabs').querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
   t.classList.add('active'); currentTab=t.dataset.tab; render();
 }));
 
@@ -556,87 +561,80 @@ document.getElementById('m-ticker').addEventListener('input',e=>{
   clearTimeout(tickerTimer); previewData=null;
   document.getElementById('btn-confirm').disabled=true;
   document.getElementById('modal-preview').classList.remove('show');
-  if (val.length<5){document.getElementById('ticker-status').textContent='';return;}
+  if (val.length<4){document.getElementById('ticker-status').textContent='';return;}
   document.getElementById('ticker-status').textContent='buscando...';
   document.getElementById('ticker-status').className='ticker-status loading';
   tickerTimer=setTimeout(()=>fetchTickerPreview(val),600);
 });
 
+function _detectCat(ticker) {
+  if (/^[A-Z]{4}1[1-9]$/.test(ticker)) return 'fii';
+  if (/^[A-Z]{4}\d{1,2}$/.test(ticker)) return 'acao';
+  return null;
+}
+
 async function fetchTickerPreview(ticker) {
-  if (allData.find(r=>r.ticker===ticker)) {
+  const allTickers=[...fiisData.map(r=>r.ticker),...acoesData.map(r=>r.ticker)];
+  if (allTickers.includes(ticker)) {
     document.getElementById('ticker-status').textContent='Ticker já cadastrado.';
     document.getElementById('ticker-status').className='ticker-status err';
     return;
   }
-
-  // Validação básica de formato FII: 4 letras + 2 dígitos + opcional letra (ex: MXRF11, HGLG11)
-  if (!/^[A-Z]{4}\d{2}[A-Z]?$/.test(ticker)) {
-    document.getElementById('ticker-status').textContent='Formato inválido. Ex: MXRF11';
+  const cat=_detectCat(ticker);
+  if (!cat) {
+    document.getElementById('ticker-status').textContent='Formato inválido. Ex: MXRF11 (FII) ou PETR4 (ação)';
     document.getElementById('ticker-status').className='ticker-status err';
     return;
   }
-
-  // Tenta buscar no FundsExplorer (sem autenticação)
-  try {
-    const res = await fetch(`https://www.fundsexplorer.com.br/funds/${ticker}`, {
-      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html' }
-    });
-
-    if (res.ok) {
-      const html = await res.text();
-      // Extrai nome do título da página ou do HTML
-      const nomeMatch = html.match(/<h1[^>]*>([^<]{4,60})<\/h1>/) ||
-                        html.match(/<title>([^<|–-]{4,60})/);
-      const nome = nomeMatch ? nomeMatch[1].trim().replace(/\s+/g,' ') : ticker;
-
-      // Extrai preço se disponível
-      const precoMatch = html.match(/R\$\s*([\d]+[.,][\d]{2})/);
-      const preco = precoMatch ? parseFloat(precoMatch[1].replace(',','.')) : null;
-
-      previewData = {
-        ticker, nome, segmento:'Híbrido',
-        preco_atual: preco, var_dia:null, var_semanal:null,
-        ultimo_div:null, dy_percent:null,
-        atualizado_em: new Date().toISOString()
-      };
-
-      document.getElementById('prev-nome').textContent = nome;
-      document.getElementById('prev-seg').textContent = 'Híbrido';
-      document.getElementById('prev-preco').textContent = preco ? fmtR(preco) : 'será atualizado';
-      document.getElementById('prev-div').textContent = 'será atualizado pelo workflow';
-      document.getElementById('modal-preview').classList.add('show');
-      document.getElementById('ticker-status').textContent = '✓ Encontrado';
-      document.getElementById('ticker-status').className = 'ticker-status ok';
-      document.getElementById('btn-confirm').disabled = false;
-      return;
-    }
-  } catch {}
-
-  // Fallback: aceita qualquer ticker no formato correto e deixa o workflow preencher
-  previewData = {
-    ticker, nome: ticker, segmento:'Híbrido',
-    preco_atual:null, var_dia:null, var_semanal:null,
-    ultimo_div:null, dy_percent:null,
-    atualizado_em: new Date().toISOString()
-  };
-  document.getElementById('prev-nome').textContent = ticker;
-  document.getElementById('prev-seg').textContent = 'Híbrido';
-  document.getElementById('prev-preco').textContent = 'será atualizado pelo workflow';
-  document.getElementById('prev-div').textContent = 'será atualizado pelo workflow';
+  if (cat==='fii') {
+    try {
+      const res=await fetch(`https://www.fundsexplorer.com.br/funds/${ticker}`,{headers:{'User-Agent':'Mozilla/5.0','Accept':'text/html'}});
+      if (res.ok) {
+        const html=await res.text();
+        const nomeMatch=html.match(/<h1[^>]*>([^<]{4,60})<\/h1>/)||html.match(/<title>([^<|–-]{4,60})/);
+        const nome=nomeMatch?nomeMatch[1].trim().replace(/\s+/g,' '):ticker;
+        const precoMatch=html.match(/R\$\s*([\d]+[.,][\d]{2})/);
+        const preco=precoMatch?parseFloat(precoMatch[1].replace(',','.')):null;
+        previewData={ticker,nome,segmento:'Híbrido',_cat:'fii',_seg:'Híbrido',preco_atual:preco,var_dia:null,var_semanal:null,ultimo_div:null,dy_percent:null,atualizado_em:new Date().toISOString()};
+        document.getElementById('prev-cat').textContent='FII';
+        document.getElementById('prev-nome').textContent=nome;
+        document.getElementById('prev-seg').textContent='Híbrido';
+        document.getElementById('prev-preco').textContent=preco?fmtR(preco):'será atualizado';
+        document.getElementById('prev-div').textContent='será atualizado pelo workflow';
+        document.getElementById('modal-preview').classList.add('show');
+        document.getElementById('ticker-status').textContent='✓ FII encontrado';
+        document.getElementById('ticker-status').className='ticker-status ok';
+        document.getElementById('btn-confirm').disabled=false;
+        return;
+      }
+    } catch {}
+    previewData={ticker,nome:ticker,segmento:'Híbrido',_cat:'fii',_seg:'Híbrido',preco_atual:null,var_dia:null,var_semanal:null,ultimo_div:null,dy_percent:null,atualizado_em:new Date().toISOString()};
+  } else {
+    previewData={ticker,nome:ticker,setor:'—',_cat:'acao',_seg:'—',preco_atual:null,var_dia:null,var_semanal:null,ultimo_div:null,dy_percent:null,atualizado_em:new Date().toISOString()};
+  }
+  document.getElementById('prev-cat').textContent=cat==='fii'?'FII':'Ação';
+  document.getElementById('prev-nome').textContent=ticker;
+  document.getElementById('prev-seg').textContent='será atualizado pelo workflow';
+  document.getElementById('prev-preco').textContent='será atualizado pelo workflow';
+  document.getElementById('prev-div').textContent='será atualizado pelo workflow';
   document.getElementById('modal-preview').classList.add('show');
-  document.getElementById('ticker-status').textContent = '✓ Formato válido — dados serão carregados pelo workflow';
-  document.getElementById('ticker-status').className = 'ticker-status ok';
-  document.getElementById('btn-confirm').disabled = false;
+  document.getElementById('ticker-status').textContent='✓ Formato válido — dados carregados pelo workflow';
+  document.getElementById('ticker-status').className='ticker-status ok';
+  document.getElementById('btn-confirm').disabled=false;
 }
 
 async function confirmAdd() {
   if (!previewData) return;
   const qty=Number(document.getElementById('m-qty').value)||0;
   const pm=Number(document.getElementById('m-pm').value)||0;
+  const cat=previewData._cat;
+  const mTable=cat==='acao'?'acoes_mercado':'fiis_mercado';
+  const cTable=cat==='acao'?'acoes_carteira':'fiis_carteira';
+  const {_cat,_seg,...mPayload}=previewData;
   document.getElementById('btn-confirm').disabled=true;
   document.getElementById('btn-confirm').textContent='Adicionando...';
-  await fetch(SUPA_URL+'/rest/v1/fiis_mercado',{method:'POST',headers:{...H,'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify([previewData])});
-  await fetch(SUPA_URL+'/rest/v1/fiis_carteira',{method:'POST',headers:{...H,'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify([{ticker:previewData.ticker,quantidade:qty,preco_medio:pm}])});
+  await fetch(SUPA_URL+'/rest/v1/'+mTable,{method:'POST',headers:{...H,'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify([mPayload])});
+  await fetch(SUPA_URL+'/rest/v1/'+cTable,{method:'POST',headers:{...H,'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify([{ticker:previewData.ticker,quantidade:qty,preco_medio:pm}])});
   closeModal();
   document.getElementById('btn-confirm').textContent='Adicionar';
   await load();
