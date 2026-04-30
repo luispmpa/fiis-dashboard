@@ -1,5 +1,5 @@
 """
-Supabase REST API client for fiis_carteira and fiis_mercado tables.
+Supabase REST API client for fiis/acoes carteira and mercado tables.
 
 Environment variables:
     SUPABASE_URL  – project URL (default: hardcoded project URL)
@@ -8,6 +8,7 @@ Environment variables:
 
 import logging
 import os
+import re
 from typing import Tuple
 
 import requests
@@ -50,12 +51,35 @@ def _delete(path: str, params: dict) -> None:
     r.raise_for_status()
 
 
-# ── fiis_carteira ─────────────────────────────────────────────────────────────
+# ── Asset type routing ────────────────────────────────────────────────────────
+
+def asset_prefix(ticker: str) -> str:
+    """
+    Return table prefix: 'fiis' or 'acoes'.
+
+    Strategy:
+    1. Check fiis_mercado — if found, it's a FII.
+    2. Check acoes_mercado — if found, it's a stock.
+    3. Fallback heuristic: tickers ending in 11-19 are typically FIIs;
+       everything else (including BDRs ending in 34) is treated as stock.
+    """
+    rows = _get("fiis_mercado", {"ticker": f"eq.{ticker}", "select": "ticker"})
+    if rows:
+        return "fiis"
+    rows = _get("acoes_mercado", {"ticker": f"eq.{ticker}", "select": "ticker"})
+    if rows:
+        return "acoes"
+    # Heuristic fallback (new tickers not yet in any table)
+    return "fiis" if re.match(r"^[A-Z]{4}1[1-9]$", ticker) else "acoes"
+
+
+# ── carteira ──────────────────────────────────────────────────────────────────
 
 def get_posicao(ticker: str) -> Tuple[int, float]:
     """Return (quantidade, preco_medio) for ticker, or (0, 0.0) if not found."""
+    prefix = asset_prefix(ticker)
     rows = _get(
-        "fiis_carteira",
+        f"{prefix}_carteira",
         {"ticker": f"eq.{ticker}", "select": "quantidade,preco_medio"},
     )
     if not rows:
@@ -64,18 +88,16 @@ def get_posicao(ticker: str) -> Tuple[int, float]:
     row = rows[0]
     qty = int(row.get("quantidade") or 0)
     pm = float(row.get("preco_medio") or 0.0)
-    logger.debug(f"{ticker}: posição atual = {qty} cotas @ R${pm:.2f}")
+    logger.debug(f"{ticker}: posição atual = {qty} @ R${pm:.2f} [{prefix}]")
     return qty, pm
 
 
 def upsert_posicao(ticker: str, quantidade: int, preco_medio: float) -> None:
-    """
-    Update fiis_carteira for ticker.
-    Deletes the row if quantidade <= 0 (position fully sold).
-    """
+    """Update carteira for ticker. Deletes row if quantidade <= 0."""
+    prefix = asset_prefix(ticker)
     if quantidade <= 0:
-        logger.info(f"{ticker}: posição zerada, removendo da carteira")
-        _delete("fiis_carteira", {"ticker": f"eq.{ticker}"})
+        logger.info(f"{ticker}: posição zerada, removendo da {prefix}_carteira")
+        _delete(f"{prefix}_carteira", {"ticker": f"eq.{ticker}"})
         return
 
     payload = {
@@ -83,29 +105,30 @@ def upsert_posicao(ticker: str, quantidade: int, preco_medio: float) -> None:
         "quantidade": quantidade,
         "preco_medio": round(preco_medio, 2),
     }
-    _post("fiis_carteira", payload, "resolution=merge-duplicates,return=minimal")
-    logger.info(f"{ticker}: carteira atualizada → {quantidade} cotas @ R${preco_medio:.2f}")
+    _post(f"{prefix}_carteira", payload, "resolution=merge-duplicates,return=minimal")
+    logger.info(f"{ticker}: {prefix}_carteira → {quantidade} @ R${preco_medio:.2f}")
 
 
-# ── fiis_mercado ──────────────────────────────────────────────────────────────
+# ── mercado ───────────────────────────────────────────────────────────────────
 
 def ensure_ticker_in_mercado(ticker: str) -> None:
-    """Insert a minimal fiis_mercado row for ticker if it doesn't already exist."""
-    rows = _get("fiis_mercado", {"ticker": f"eq.{ticker}", "select": "ticker"})
+    """Insert a minimal mercado row for ticker if it doesn't already exist."""
+    prefix = asset_prefix(ticker)
+    rows = _get(f"{prefix}_mercado", {"ticker": f"eq.{ticker}", "select": "ticker"})
     if rows:
-        logger.debug(f"{ticker}: já existe em fiis_mercado")
+        logger.debug(f"{ticker}: já existe em {prefix}_mercado")
         return
+    _post(f"{prefix}_mercado", {"ticker": ticker}, "return=minimal")
+    logger.info(f"{ticker}: inserido em {prefix}_mercado (dados mínimos)")
 
-    _post("fiis_mercado", {"ticker": ticker}, "return=minimal")
-    logger.info(f"{ticker}: inserido em fiis_mercado (dados mínimos)")
 
-
-# ── fiis_negociacoes ──────────────────────────────────────────────────────────
+# ── negociacoes ───────────────────────────────────────────────────────────────
 
 def insert_negociacao(
     ticker: str, tipo: str, quantidade: int, preco: float, data: str | None = None
 ) -> None:
-    """Record an individual trade in fiis_negociacoes."""
+    """Record an individual trade in the correct negociacoes table."""
+    prefix = asset_prefix(ticker)
     payload: dict = {
         "ticker": ticker,
         "tipo": tipo,
@@ -114,17 +137,14 @@ def insert_negociacao(
     }
     if data:
         payload["data_negociacao"] = data
-    _post("fiis_negociacoes", payload, "return=minimal")
-    logger.debug(f"{ticker}: negociação registrada — {tipo} {quantidade}x @ R${preco:.2f} em {data or 'agora'}")
+    _post(f"{prefix}_negociacoes", payload, "return=minimal")
+    logger.debug(f"{ticker}: [{prefix}] {tipo} {quantidade}x @ R${preco:.2f} em {data or 'agora'}")
 
 
 # ── Business logic ────────────────────────────────────────────────────────────
 
 def process_compra(ticker: str, quantidade: int, preco: float, data: str | None = None) -> None:
-    """
-    Record a purchase: recalculate weighted average price and add quantity.
-    novo_pm = (qtd_atual * pm_atual + qtd_compra * preco_compra) / (qtd_atual + qtd_compra)
-    """
+    """Record a purchase: recalculate weighted average price and add quantity."""
     qtd_atual, pm_atual = get_posicao(ticker)
 
     novo_pm = (
@@ -135,7 +155,7 @@ def process_compra(ticker: str, quantidade: int, preco: float, data: str | None 
     nova_qtd = qtd_atual + quantidade
 
     logger.info(
-        f"COMPRA {ticker}: {qtd_atual}+{quantidade} cotas | "
+        f"COMPRA {ticker}: {qtd_atual}+{quantidade} | "
         f"PM: R${pm_atual:.2f} → R${novo_pm:.2f}"
     )
 
@@ -145,20 +165,16 @@ def process_compra(ticker: str, quantidade: int, preco: float, data: str | None 
 
 
 def process_venda(ticker: str, quantidade: int, preco: float, data: str | None = None) -> None:
-    """
-    Record a sale: subtract quantity, preserve average price.
-    """
+    """Record a sale: subtract quantity, preserve average price."""
     qtd_atual, pm_atual = get_posicao(ticker)
 
     if qtd_atual == 0:
-        logger.warning(
-            f"VENDA {ticker}: posição não encontrada na carteira — ignorando"
-        )
+        logger.warning(f"VENDA {ticker}: posição não encontrada — ignorando")
         return
 
     nova_qtd = qtd_atual - quantidade
     logger.info(
-        f"VENDA {ticker}: {qtd_atual}−{quantidade} = {nova_qtd} cotas "
+        f"VENDA {ticker}: {qtd_atual}−{quantidade} = {nova_qtd} "
         f"@ R${preco:.2f} (PM mantido: R${pm_atual:.2f})"
     )
     upsert_posicao(ticker, nova_qtd, pm_atual)
