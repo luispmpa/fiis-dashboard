@@ -299,16 +299,21 @@ async function load() {
 }
 
 function updateLastUpdate() {
-  const datas = allData.filter(r=>r.atualizado_em).map(r=>r.atualizado_em);
-  if (!datas.length) { document.getElementById('last-update').textContent='aguardando atualização'; return; }
-  const d = new Date(Math.max(...datas.map(x=>new Date(x))));
+  const all = [...fiisData, ...acoesData].filter(r=>r.atualizado_em).map(r=>r.atualizado_em);
+  if (!all.length) { document.getElementById('last-update').textContent='aguardando atualização'; return; }
+  const d = new Date(Math.max(...all.map(x=>new Date(x))));
   document.getElementById('last-update').textContent = 'atualizado '+d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
 }
 
+function _getCart(r) {
+  return r._cat==='acao' ? (acoesCart[r.ticker]||{}) : (fiisCart[r.ticker]||{});
+}
+
 function updateSummary() {
+  const rows = currentCat==='fii' ? fiisData : currentCat==='acao' ? acoesData : [...fiisData,...acoesData];
   let pat=0,custo=0,renda=0,dyN=0,dyD=0;
-  allData.forEach(r => {
-    const c=cartData[r.ticker]||{quantidade:0,preco_medio:0};
+  rows.forEach(r => {
+    const c=_getCart(r);
     const q=Number(c.quantidade)||0, pm=Number(c.preco_medio)||0;
     const pc=Number(r.preco_atual)||0, div=Number(r.ultimo_div)||0;
     pat+=q*pc; custo+=q*pm; renda+=q*div;
@@ -317,7 +322,8 @@ function updateSummary() {
   const pl=pat-custo, plPct=custo>0?(pl/custo)*100:null;
   document.getElementById('s-pat').textContent=fmtR(pat);
   document.getElementById('s-pat-sub').textContent='custo: '+fmtR(custo);
-  document.getElementById('s-renda').textContent=fmtR(renda)+'/mês';
+  const rendaLabel = currentCat==='acao' ? '/últ. div' : '/mês';
+  document.getElementById('s-renda').textContent=fmtR(renda)+rendaLabel;
   document.getElementById('s-dy').textContent=dyD>0?fmtN(dyN/dyD)+'%':'—';
   const el=document.getElementById('s-res');
   el.textContent=fmtR(pl); el.className='s-value '+(pl>=0?'up':'down');
@@ -326,17 +332,18 @@ function updateSummary() {
 
 const SORT_KEY = {
   ticker: r=>r.ticker,
+  cat:    r=>r._cat||'',
   nome:   r=>r.nome||'',
-  seg:    r=>r.segmento||'',
+  seg:    r=>r._seg||'',
   preco:  r=>Number(r.preco_atual)||0,
   vd:     r=>Number(r.var_dia)||0,
   vs:     r=>Number(r.var_semanal)||0,
   div:    r=>Number(r.ultimo_div)||0,
   dy:     r=>Number(r.dy_percent)||0,
-  cotas:  r=>Number((cartData[r.ticker]||{}).quantidade)||0,
-  pm:     r=>Number((cartData[r.ticker]||{}).preco_medio)||0,
-  pos:    r=>{const c=cartData[r.ticker]||{};return (Number(c.quantidade)||0)*(Number(r.preco_atual)||0);},
-  pl:     r=>{const c=cartData[r.ticker]||{};const q=Number(c.quantidade)||0,pm2=Number(c.preco_medio)||0,pc=Number(r.preco_atual)||0;return pm2>0?q*pc-q*pm2:null;},
+  cotas:  r=>Number((_getCart(r)).quantidade)||0,
+  pm:     r=>Number((_getCart(r)).preco_medio)||0,
+  pos:    r=>{const c=_getCart(r);return (Number(c.quantidade)||0)*(Number(r.preco_atual)||0);},
+  pl:     r=>{const c=_getCart(r);const q=Number(c.quantidade)||0,pm2=Number(c.preco_medio)||0,pc=Number(r.preco_atual)||0;return pm2>0?q*pc-q*pm2:null;},
 };
 
 function setSort(col) {
