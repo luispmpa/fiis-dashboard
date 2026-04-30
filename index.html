@@ -75,6 +75,8 @@ input.cell-input:focus { border-color:var(--blue); }
 
 .btn-save { background:none; border:1px solid var(--line); color:var(--muted); font-size:10px; font-family:var(--sans); padding:4px 10px; border-radius:5px; cursor:pointer; letter-spacing:.04em; transition:all .15s; }
 .btn-save:hover { border-color:var(--accent); color:var(--accent); }
+.btn-del { background:none; border:none; color:var(--muted); padding:4px 6px; border-radius:5px; cursor:pointer; transition:color .15s; line-height:1; }
+.btn-del:hover { color:var(--red); }
 
 .signal { font-size:10px; font-weight:600; letter-spacing:.06em; font-family:var(--sans); }
 .sig-buy { color:var(--accent); } .sig-sell { color:var(--red); } .sig-hold { color:var(--amber); } .sig-none { color:var(--muted); }
@@ -170,6 +172,17 @@ input.cell-input:focus { border-color:var(--blue); }
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
       <button class="btn-confirm" id="btn-confirm" disabled onclick="confirmAdd()">Adicionar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-del">
+  <div class="modal" style="width:360px">
+    <h2>Excluir ticker</h2>
+    <p id="del-msg">Isso remove o ativo da carteira e da lista de monitoramento. Não pode ser desfeito.</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeDelModal()">Cancelar</button>
+      <button class="btn-confirm" id="btn-del-confirm" style="background:var(--red)" onclick="confirmDelete()">Excluir</button>
     </div>
   </div>
 </div>
@@ -288,7 +301,12 @@ function render() {
       <td>${qty>0?fmtR(pos):'—'}</td>
       <td class="${plC}">${pl!=null?fmtR(pl)+(plPct!=null?' ('+fmtP(plPct)+')':''):'—'}</td>
       <td>${sinal}</td>
-      <td><button class="btn-save" data-ticker="${r.ticker}">salvar</button></td>
+      <td style="display:flex;gap:6px;align-items:center">
+        <button class="btn-save" data-ticker="${r.ticker}">salvar</button>
+        <button class="btn-del" data-ticker="${r.ticker}" title="Excluir ticker">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        </button>
+      </td>
     </tr>`;
   }).join('');
 
@@ -300,6 +318,7 @@ function render() {
   </table></div>`;
 
   document.querySelectorAll('.btn-save').forEach(b=>b.addEventListener('click',()=>save(b.dataset.ticker)));
+  document.querySelectorAll('.btn-del').forEach(b=>b.addEventListener('click',()=>openDelModal(b.dataset.ticker)));
 }
 
 async function save(ticker) {
@@ -312,6 +331,32 @@ async function save(ticker) {
   btn.textContent='✓'; btn.style.color='var(--accent)'; btn.style.borderColor='var(--accent)';
   setTimeout(()=>{btn.textContent=orig;btn.style.color='';btn.style.borderColor='';},1000);
   updateSummary();
+}
+
+let delTicker=null;
+function openDelModal(ticker) {
+  delTicker=ticker;
+  document.getElementById('del-msg').textContent=`Isso remove "${ticker}" da carteira e da lista de monitoramento. Não pode ser desfeito.`;
+  document.getElementById('modal-del').classList.add('open');
+}
+function closeDelModal() { document.getElementById('modal-del').classList.remove('open'); delTicker=null; }
+document.getElementById('modal-del').addEventListener('click',e=>{if(e.target===document.getElementById('modal-del'))closeDelModal();});
+
+async function confirmDelete() {
+  if (!delTicker) return;
+  const ticker=delTicker;
+  document.getElementById('btn-del-confirm').disabled=true;
+  document.getElementById('btn-del-confirm').textContent='Excluindo...';
+  await Promise.all([
+    fetch(SUPA_URL+'/rest/v1/fiis_carteira?ticker=eq.'+ticker,{method:'DELETE',headers:H}),
+    fetch(SUPA_URL+'/rest/v1/fiis_mercado?ticker=eq.'+ticker,{method:'DELETE',headers:H}),
+  ]);
+  delete cartData[ticker];
+  allData=allData.filter(r=>r.ticker!==ticker);
+  closeDelModal();
+  document.getElementById('btn-del-confirm').disabled=false;
+  document.getElementById('btn-del-confirm').textContent='Excluir';
+  render(); updateSummary();
 }
 
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
