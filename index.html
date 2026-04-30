@@ -397,7 +397,7 @@ async function openDetailModal(ticker) {
     negs.forEach(n=>{if(n.tipo==='C'){totalC+=n.quantidade;totalGasto+=n.quantidade*n.preco;}else{totalV+=n.quantidade;}});
     const rows=negs.map(n=>{
       const dt=new Date(n.data_negociacao);
-      const dtStr=dt.toLocaleDateString('pt-BR')+' '+dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+      const dtStr=String(dt.getUTCDate()).padStart(2,'0')+'/'+String(dt.getUTCMonth()+1).padStart(2,'0')+'/'+dt.getUTCFullYear();
       const badge=n.tipo==='C'?'<span class="badge-c">COMPRA</span>':'<span class="badge-v">VENDA</span>';
       const total=n.quantidade*n.preco;
       return `<tr><td>${dtStr}</td><td>${badge}</td><td>${n.quantidade}</td><td>${fmtR(n.preco)}</td><td>${fmtR(total)}</td></tr>`;
