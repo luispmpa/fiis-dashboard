@@ -142,7 +142,7 @@ def parse_negociacoes(text: str) -> List[Negociacao]:
         r"\d-BOVESPA\s+(C|V)\s+VISTA\s+"   # mercado + direção
         r"(?:FII\s+)?"                       # opcional "FII"
         r"(?:.*?)"                           # nome do fundo (não-guloso)
-        r"([A-Z]{4}\d{2})\b"                # ticker: 4 letras + 2 dígitos
+        r"([A-Z]{4}\d{1,2})\b"              # ticker: 4 letras + 1-2 dígitos (FII ou ação)
         r"(?:\s+[A-Z]+)*\s+"                # códigos opcionais (CI, ER…)
         r"(\d{1,6})\s+"                     # quantidade (inteiro)
         r"(\d{1,3}(?:\.\d{3})*,\d{2})",    # preço formato brasileiro
@@ -192,11 +192,11 @@ def parse_negociacoes(text: str) -> List[Negociacao]:
             i += 1
             continue
 
-        # Locate ticker: 4 uppercase letters + 2 digits
+        # Locate ticker: 4 uppercase letters + 1-2 digits (FII or stock)
         ticker = None
         ticker_idx = None
         for j in range(cv_line, min(cv_line + 12, len(lines))):
-            tm = re.search(r"\b([A-Z]{4}\d{2})\b", lines[j])
+            tm = re.search(r"\b([A-Z]{4}\d{1,2})\b", lines[j])
             if tm:
                 ticker = tm.group(1).upper()
                 ticker_idx = j
