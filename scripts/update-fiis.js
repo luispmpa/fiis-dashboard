@@ -148,7 +148,65 @@ async function processarAcoes(tickers) {
     console.log(`✓ ${rows.length} ações salvas`);
   }
 }
+async function fetchDividendEvents(ticker) {
+  try {
+    const url = `https://brapi.dev/api/quote/${ticker}?modules=dividendsData&token=${BRAPI_TOKEN}`;
+    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (!res.ok) return [];
+    const json = await res.json();
+    const divs = json?.results?.[0]?.dividendsData?.cashDividends;
+    if (!divs?.length) return [];
 
+    const now    = new Date();
+    const cutoff = new Date(now);
+    cutoff.setFullYear(cutoff.getFullYear() - 1); // só últimos 12 meses + futuros
+
+    const isFii = /^[A-Z]{4}1[1-9]$/.test(ticker);
+
+    return divs
+      .filter(d => d.paymentDate && new Date(d.paymentDate) >= cutoff)
+      .map(d => {
+        const payDate = new Date(d.paymentDate);
+        const value   = parseFloat((d.adjustedValue ?? d.rate ?? 0).toFixed(6));
+        if (!value || value <= 0) return null;
+        const rawType   = (d.type || '').toUpperCase();
+        const eventType = rawType.includes('JCP')    ? 'JCP'
+                        : rawType.includes('RESULT') ? 'RESULTADO'
+                        : 'DIVIDENDO';
+        return {
+          ticker,
+          event_type:  eventType,
+          event_date:  payDate.toISOString().slice(0, 10),
+          value,
+          description: `${isFii ? 'Rendimento' : 'Dividendo'} — ${ticker}`,
+          status:      payDate < now ? 'PAID' : 'CONFIRMED',
+          source:      'brapi',
+        };
+      })
+      .filter(Boolean);
+  } catch { return []; }
+}
+
+async function popularDividendEvents(fiiTickers, acaoTickers) {
+  console.log('\n── Dividend Events ──');
+  const events = [];
+
+  for (const ticker of [...fiiTickers, ...acaoTickers]) {
+    try {
+      const evs = await fetchDividendEvents(ticker);
+      if (evs.length) {
+        events.push(...evs);
+        console.log(`  ${ticker}: ${evs.length} evento(s)`);
+      }
+      await sleep(500);
+    } catch(e) { console.error(`  ${ticker}: ERRO — ${e.message}`); }
+  }
+
+  if (!events.length) { console.log('  Nenhum evento encontrado via BraPI'); return; }
+
+  await upsertSupabase('dividend_events', events);
+  console.log(`✓ ${events.length} eventos salvos em dividend_events`);
+}
 async function main() {
   console.log(`[${new Date().toISOString()}] Iniciando atualização de ativos`);
   const [fiiTickers, acaoTickers] = await Promise.all([
@@ -159,7 +217,7 @@ async function main() {
 
   await processarFiis(fiiTickers);
   await processarAcoes(acaoTickers);
-
+  await popularDividendEvents(fiiTickers, acaoTickers);
   console.log(`\n[${new Date().toISOString()}] Concluído`);
 }
 
