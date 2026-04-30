@@ -54,8 +54,13 @@ td { padding:14px 20px; font-family:var(--mono); font-size:12px; text-align:righ
 td:first-child { text-align:left; }
 td:nth-child(2) { font-family:var(--sans); font-size:13px; text-align:left; color:var(--muted2); }
 td:nth-child(3) { text-align:left; }
+th.sortable { cursor:pointer; user-select:none; }
+th.sortable:hover { color:var(--text); }
+th.sort-asc::after { content:' ↑'; color:var(--accent); }
+th.sort-desc::after { content:' ↓'; color:var(--accent); }
 
-.ticker-label { font-weight:500; color:var(--blue); font-size:13px; letter-spacing:.04em; }
+.ticker-label { font-weight:500; color:var(--blue); font-size:13px; letter-spacing:.04em; cursor:pointer; }
+.ticker-label:hover { text-decoration:underline; }
 .seg-pill { font-size:10px; font-weight:500; padding:2px 8px; border-radius:3px; letter-spacing:.04em; font-family:var(--sans); }
 .seg-papel   { background:rgba(77,159,255,.12); color:#7ab8ff; }
 .seg-log     { background:rgba(61,255,160,.10); color:#6dffc4; }
@@ -71,6 +76,8 @@ input.cell-input:focus { border-color:var(--blue); }
 
 .btn-save { background:none; border:1px solid var(--line); color:var(--muted); font-size:10px; font-family:var(--sans); padding:4px 10px; border-radius:5px; cursor:pointer; letter-spacing:.04em; transition:all .15s; }
 .btn-save:hover { border-color:var(--accent); color:var(--accent); }
+.btn-del { background:none; border:none; color:var(--muted); padding:4px 6px; border-radius:5px; cursor:pointer; transition:color .15s; line-height:1; }
+.btn-del:hover { color:var(--red); }
 
 .signal { font-size:10px; font-weight:600; letter-spacing:.06em; font-family:var(--sans); }
 .sig-buy { color:var(--accent); } .sig-sell { color:var(--red); } .sig-hold { color:var(--amber); } .sig-none { color:var(--muted); }
@@ -100,6 +107,18 @@ input.cell-input:focus { border-color:var(--blue); }
 .ticker-status { font-size:11px; margin-top:6px; height:14px; font-family:var(--mono); }
 .ticker-status.ok { color:var(--accent); } .ticker-status.err { color:var(--red); } .ticker-status.loading { color:var(--muted2); }
 
+.modal-detail { width:600px; max-height:80vh; overflow-y:auto; }
+.detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:24px; }
+.detail-card { background:var(--bg2); border-radius:8px; padding:14px 16px; }
+.detail-card .s-label { font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin-bottom:4px; }
+.detail-card .s-value { font-family:var(--mono); font-size:16px; font-weight:500; }
+.neg-table { width:100%; border-collapse:collapse; margin-top:8px; }
+.neg-table th { font-size:10px; letter-spacing:.07em; text-transform:uppercase; color:var(--muted); text-align:left; padding:6px 10px; border-bottom:1px solid var(--line2); }
+.neg-table td { font-family:var(--mono); font-size:12px; padding:10px 10px; border-bottom:1px solid var(--line); }
+.neg-table tr:last-child td { border-bottom:none; }
+.badge-c { background:rgba(61,255,160,.12); color:var(--accent); font-size:10px; font-weight:600; padding:2px 7px; border-radius:3px; }
+.badge-v { background:rgba(255,95,95,.10); color:var(--red); font-size:10px; font-weight:600; padding:2px 7px; border-radius:3px; }
+.section-title { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted2); margin-bottom:10px; font-weight:500; }
 .empty { padding:80px 32px; text-align:center; color:var(--muted); }
 .empty p { font-size:14px; } .empty span { font-size:24px; display:block; margin-bottom:12px; }
 .loading-state { padding:80px; display:flex; align-items:center; justify-content:center; gap:12px; color:var(--muted); font-family:var(--mono); font-size:12px; }
@@ -170,6 +189,34 @@ input.cell-input:focus { border-color:var(--blue); }
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-detail">
+  <div class="modal modal-detail">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+      <div>
+        <h2 id="det-ticker" style="font-family:var(--mono);font-size:20px;color:var(--blue)">—</h2>
+        <p id="det-nome" style="margin:2px 0 0;color:var(--muted2);font-size:13px">—</p>
+      </div>
+      <button onclick="closeDetailModal()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;line-height:1">✕</button>
+    </div>
+    <div class="detail-grid" id="det-grid"></div>
+    <div class="section-title">Histórico de negociações</div>
+    <div id="det-neg-wrap">
+      <div style="color:var(--muted);font-family:var(--mono);font-size:12px;padding:16px 0">carregando...</div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-del">
+  <div class="modal" style="width:360px">
+    <h2>Excluir ticker</h2>
+    <p id="del-msg">Isso remove o ativo da carteira e da lista de monitoramento. Não pode ser desfeito.</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeDelModal()">Cancelar</button>
+      <button class="btn-confirm" id="btn-del-confirm" style="background:var(--red)" onclick="confirmDelete()">Excluir</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const SUPA_URL = 'https://ityrkysliksvvhpvweft.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eXJreXNsaWtzdnZocHZ3ZWZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3MzAyMjMsImV4cCI6MjA5MTMwNjIyM30.mWBSzqgB-AYi1XWGmevMmxrm5xUFJ87uefMqwYC184w';
@@ -181,6 +228,7 @@ const fmtN = v => v!=null ? Number(v).toLocaleString('pt-BR',{minimumFractionDig
 const segClass = s => ({'Papel/CRI':'seg-papel','Logística':'seg-log','Híbrido':'seg-hibrido','Shoppings':'seg-shop','Varejo':'seg-varejo'})[s]||'';
 
 let allData=[], cartData={}, currentTab='all', searchTerm='', previewData=null;
+let sortCol=null, sortDir=1; // sortDir: 1=asc, -1=desc
 
 async function load() {
   const [mRes,cRes] = await Promise.all([
@@ -220,10 +268,39 @@ function updateSummary() {
   document.getElementById('s-res-sub').textContent=plPct!=null?fmtP(plPct)+' vs. custo':'insira preços médios';
 }
 
+const SORT_KEY = {
+  ticker: r=>r.ticker,
+  nome:   r=>r.nome||'',
+  seg:    r=>r.segmento||'',
+  preco:  r=>Number(r.preco_atual)||0,
+  vd:     r=>Number(r.var_dia)||0,
+  vs:     r=>Number(r.var_semanal)||0,
+  div:    r=>Number(r.ultimo_div)||0,
+  dy:     r=>Number(r.dy_percent)||0,
+  cotas:  r=>Number((cartData[r.ticker]||{}).quantidade)||0,
+  pm:     r=>Number((cartData[r.ticker]||{}).preco_medio)||0,
+  pos:    r=>{const c=cartData[r.ticker]||{};return (Number(c.quantidade)||0)*(Number(r.preco_atual)||0);},
+  pl:     r=>{const c=cartData[r.ticker]||{};const q=Number(c.quantidade)||0,pm2=Number(c.preco_medio)||0,pc=Number(r.preco_atual)||0;return pm2>0?q*pc-q*pm2:null;},
+};
+
+function setSort(col) {
+  if (sortCol===col) sortDir*=-1; else { sortCol=col; sortDir=1; }
+  render();
+}
+
 function render() {
   let rows=[...allData];
   if (currentTab==='cart') rows=rows.filter(r=>{const c=cartData[r.ticker];return c&&Number(c.quantidade)>0;});
   if (searchTerm) { const s=searchTerm.toLowerCase(); rows=rows.filter(r=>r.ticker.toLowerCase().includes(s)||(r.nome||'').toLowerCase().includes(s)||(r.segmento||'').toLowerCase().includes(s)); }
+  if (sortCol && SORT_KEY[sortCol]) {
+    const fn=SORT_KEY[sortCol];
+    rows.sort((a,b)=>{
+      const av=fn(a), bv=fn(b);
+      if (av===null&&bv===null) return 0;
+      if (av===null) return 1; if (bv===null) return -1;
+      return av<bv?-sortDir:av>bv?sortDir:0;
+    });
+  }
 
   const area=document.getElementById('table-area');
   if (rows.length===0) {
@@ -241,7 +318,7 @@ function render() {
     if (pm>0&&pc>0){const d=((pc-pm)/pm)*100;sinal=d<-3?'<span class="signal sig-buy">↓ COMPRAR</span>':d>5?'<span class="signal sig-sell">↑ VENDER</span>':'<span class="signal sig-hold">→ MANTER</span>';}
     const vdC=r.var_dia>=0?'up':'down', vsC=r.var_semanal>=0?'up':'down', plC=pl!=null?(pl>=0?'pl-pos':'pl-neg'):'';
     return `<tr>
-      <td><span class="ticker-label">${r.ticker}</span></td>
+      <td><span class="ticker-label" onclick="openDetailModal('${r.ticker}')">${r.ticker}</span></td>
       <td>${r.nome||'—'}</td>
       <td><span class="seg-pill ${segClass(r.segmento)}">${r.segmento||'—'}</span></td>
       <td>${fmtR(r.preco_atual)}</td>
@@ -254,16 +331,24 @@ function render() {
       <td>${qty>0?fmtR(pos):'—'}</td>
       <td class="${plC}">${pl!=null?fmtR(pl)+(plPct!=null?' ('+fmtP(plPct)+')':''):'—'}</td>
       <td>${sinal}</td>
-      <td><button class="btn-save" data-ticker="${r.ticker}">salvar</button></td>
+      <td style="display:flex;gap:6px;align-items:center">
+        <button class="btn-save" data-ticker="${r.ticker}">salvar</button>
+        <button class="btn-del" data-ticker="${r.ticker}" title="Excluir ticker">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        </button>
+      </td>
     </tr>`;
   }).join('');
 
+  const sc=sortCol, sd=sortDir;
+  function th(label,col,align='right'){const a=align==='left'?'text-align:left':'';const cls=['sortable',sc===col?(sd>0?'sort-asc':'sort-desc'):''].join(' ').trim();return `<th class="${cls}" style="${a}" onclick="setSort('${col}')">${label}</th>`;}
   area.innerHTML=`<div class="table-wrap"><table>
-    <thead><tr><th>Ticker</th><th>Nome</th><th>Segmento</th><th>Preço</th><th>Var. dia</th><th>Var. sem.</th><th>Últ. div.</th><th>DY%</th><th>Cotas</th><th>P. médio</th><th>Posição</th><th>P&L</th><th>Sinal</th><th></th></tr></thead>
+    <thead><tr>${th('Ticker','ticker','left')}${th('Nome','nome','left')}${th('Segmento','seg','left')}${th('Preço','preco')}${th('Var. dia','vd')}${th('Var. sem.','vs')}${th('Últ. div.','div')}${th('DY%','dy')}${th('Cotas','cotas')}${th('P. médio','pm')}${th('Posição','pos')}${th('P&L','pl')}<th>Sinal</th><th></th></tr></thead>
     <tbody>${tbody}</tbody>
   </table></div>`;
 
   document.querySelectorAll('.btn-save').forEach(b=>b.addEventListener('click',()=>save(b.dataset.ticker)));
+  document.querySelectorAll('.btn-del').forEach(b=>b.addEventListener('click',()=>openDelModal(b.dataset.ticker)));
 }
 
 async function save(ticker) {
@@ -276,6 +361,88 @@ async function save(ticker) {
   btn.textContent='✓'; btn.style.color='var(--accent)'; btn.style.borderColor='var(--accent)';
   setTimeout(()=>{btn.textContent=orig;btn.style.color='';btn.style.borderColor='';},1000);
   updateSummary();
+}
+
+async function openDetailModal(ticker) {
+  const r=allData.find(x=>x.ticker===ticker)||{};
+  const c=cartData[ticker]||{quantidade:0,preco_medio:0};
+  const qty=Number(c.quantidade)||0, pm=Number(c.preco_medio)||0;
+  const pc=Number(r.preco_atual)||0;
+  const pos=qty*pc, custo=qty*pm, pl=pm>0?pos-custo:null, plPct=(pm>0&&custo>0)?((pos-custo)/custo)*100:null;
+  document.getElementById('det-ticker').textContent=ticker;
+  document.getElementById('det-nome').textContent=(r.nome||'—')+' · '+(r.segmento||'—');
+  const cards=[
+    ['Preço atual',fmtR(pc),''],
+    ['Var. dia',r.var_dia!=null?fmtP(r.var_dia):'—',r.var_dia>=0?'up':'down'],
+    ['Último dividendo',fmtR(r.ultimo_div),''],
+    ['DY%',r.dy_percent!=null?fmtN(r.dy_percent)+'%':'—',''],
+    ['Cotas',qty||'—',''],
+    ['Preço médio',pm>0?fmtR(pm):'—',''],
+    ['Posição atual',qty>0?fmtR(pos):'—',''],
+    ['P&L',pl!=null?fmtR(pl)+(plPct!=null?' ('+fmtP(plPct)+')':''):'—',pl!=null?(pl>=0?'up':'down'):''],
+  ];
+  document.getElementById('det-grid').innerHTML=cards.map(([label,val,cls])=>`
+    <div class="detail-card"><div class="s-label">${label}</div><div class="s-value ${cls}">${val}</div></div>`).join('');
+  document.getElementById('modal-detail').classList.add('open');
+  // Load trade history
+  document.getElementById('det-neg-wrap').innerHTML='<div style="color:var(--muted);font-family:var(--mono);font-size:12px;padding:16px 0">carregando...</div>';
+  try {
+    const res=await fetch(SUPA_URL+'/rest/v1/fiis_negociacoes?ticker=eq.'+ticker+'&order=data_negociacao.desc&select=*',{headers:H});
+    const negs=await res.json();
+    if (!negs.length) {
+      document.getElementById('det-neg-wrap').innerHTML='<div style="color:var(--muted);font-family:var(--mono);font-size:12px;padding:16px 0">Nenhuma negociação registrada.</div>';
+      return;
+    }
+    let totalC=0,totalV=0,totalGasto=0;
+    negs.forEach(n=>{if(n.tipo==='C'){totalC+=n.quantidade;totalGasto+=n.quantidade*n.preco;}else{totalV+=n.quantidade;}});
+    const rows=negs.map(n=>{
+      const dt=new Date(n.data_negociacao);
+      const dtStr=dt.toLocaleDateString('pt-BR')+' '+dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+      const badge=n.tipo==='C'?'<span class="badge-c">COMPRA</span>':'<span class="badge-v">VENDA</span>';
+      const total=n.quantidade*n.preco;
+      return `<tr><td>${dtStr}</td><td>${badge}</td><td>${n.quantidade}</td><td>${fmtR(n.preco)}</td><td>${fmtR(total)}</td></tr>`;
+    }).join('');
+    document.getElementById('det-neg-wrap').innerHTML=`
+      <table class="neg-table">
+        <thead><tr><th>Data</th><th>Tipo</th><th>Qtd</th><th>Preço unit.</th><th>Total</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div style="display:flex;gap:16px;margin-top:14px;font-family:var(--mono);font-size:11px;color:var(--muted2)">
+        <span>Total comprado: <b style="color:var(--accent)">${totalC} cotas</b></span>
+        <span>Total vendido: <b style="color:var(--red)">${totalV} cotas</b></span>
+        <span>Capital investido: <b style="color:var(--text)">${fmtR(totalGasto)}</b></span>
+      </div>`;
+  } catch(e) {
+    document.getElementById('det-neg-wrap').innerHTML='<div style="color:var(--red);font-size:12px">Erro ao carregar histórico.</div>';
+  }
+}
+function closeDetailModal() { document.getElementById('modal-detail').classList.remove('open'); }
+document.getElementById('modal-detail').addEventListener('click',e=>{if(e.target===document.getElementById('modal-detail'))closeDetailModal();});
+
+let delTicker=null;
+function openDelModal(ticker) {
+  delTicker=ticker;
+  document.getElementById('del-msg').textContent=`Isso remove "${ticker}" da carteira e da lista de monitoramento. Não pode ser desfeito.`;
+  document.getElementById('modal-del').classList.add('open');
+}
+function closeDelModal() { document.getElementById('modal-del').classList.remove('open'); delTicker=null; }
+document.getElementById('modal-del').addEventListener('click',e=>{if(e.target===document.getElementById('modal-del'))closeDelModal();});
+
+async function confirmDelete() {
+  if (!delTicker) return;
+  const ticker=delTicker;
+  document.getElementById('btn-del-confirm').disabled=true;
+  document.getElementById('btn-del-confirm').textContent='Excluindo...';
+  await Promise.all([
+    fetch(SUPA_URL+'/rest/v1/fiis_carteira?ticker=eq.'+ticker,{method:'DELETE',headers:H}),
+    fetch(SUPA_URL+'/rest/v1/fiis_mercado?ticker=eq.'+ticker,{method:'DELETE',headers:H}),
+  ]);
+  delete cartData[ticker];
+  allData=allData.filter(r=>r.ticker!==ticker);
+  closeDelModal();
+  document.getElementById('btn-del-confirm').disabled=false;
+  document.getElementById('btn-del-confirm').textContent='Excluir';
+  render(); updateSummary();
 }
 
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
