@@ -243,20 +243,58 @@ const H = {'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'
 const fmtR = v => v!=null ? 'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
 const fmtP = v => v!=null ? (v>=0?'+':'')+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%' : '—';
 const fmtN = v => v!=null ? Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
-const segClass = s => ({'Papel/CRI':'seg-papel','Logística':'seg-log','Híbrido':'seg-hibrido','Shoppings':'seg-shop','Varejo':'seg-varejo'})[s]||'';
 
-let allData=[], cartData={}, currentTab='all', searchTerm='', previewData=null;
-let sortCol=null, sortDir=1; // sortDir: 1=asc, -1=desc
+const segClass = s => {
+  if (!s) return '';
+  const map = {
+    'Papel/CRI':'seg-papel','Logística':'seg-log','Híbrido':'seg-hibrido','Shoppings':'seg-shop','Varejo':'seg-varejo',
+    'Financeiro':'seg-financeiro','Energia':'seg-energia','Petróleo/Gás':'seg-petroleo',
+    'Tecnologia':'seg-tecnologia','Saúde':'seg-saude','Consumo':'seg-consumo','Indústria':'seg-industria'
+  };
+  if (map[s]) return map[s];
+  const sl = s.toLowerCase();
+  if (sl.includes('financ')||sl.includes('bank')) return 'seg-financeiro';
+  if (sl.includes('energ')) return 'seg-energia';
+  if (sl.includes('petro')||sl.includes('oil')||sl.includes('gas')) return 'seg-petroleo';
+  if (sl.includes('tech')||sl.includes('tecno')) return 'seg-tecnologia';
+  if (sl.includes('saude')||sl.includes('health')) return 'seg-saude';
+  if (sl.includes('consum')) return 'seg-consumo';
+  if (sl.includes('indust')) return 'seg-industria';
+  return 'seg-outros';
+};
+
+// isFii: termina em 11-19 (padrão de FII)
+const isFiiTicker = t => /^[A-Z]{4}1[1-9]$/.test(t);
+
+// Estado global
+let fiisData=[], fiisCart={};
+let acoesData=[], acoesCart={};
+let currentCat='fii';   // 'fii' | 'acao' | 'all'
+let currentTab='all';   // 'all' | 'cart'
+let searchTerm='', previewData=null;
+let sortCol=null, sortDir=1;
 
 async function load() {
-  const [mRes,cRes] = await Promise.all([
+  const [fmRes,fcRes,amRes,acRes] = await Promise.all([
     fetch(SUPA_URL+'/rest/v1/fiis_mercado?select=*&order=ticker',{headers:H}),
-    fetch(SUPA_URL+'/rest/v1/fiis_carteira?select=*',{headers:H})
+    fetch(SUPA_URL+'/rest/v1/fiis_carteira?select=*',{headers:H}),
+    fetch(SUPA_URL+'/rest/v1/acoes_mercado?select=*&order=ticker',{headers:H}),
+    fetch(SUPA_URL+'/rest/v1/acoes_carteira?select=*',{headers:H}),
   ]);
-  allData = await mRes.json();
-  const cart = await cRes.json();
-  cartData = {};
-  cart.forEach(c => cartData[c.ticker]=c);
+  fiisData = await fmRes.json();
+  const fc = await fcRes.json();
+  fiisCart = {};
+  fc.forEach(c => fiisCart[c.ticker]=c);
+
+  acoesData = await amRes.json();
+  const ac = await acRes.json();
+  acoesCart = {};
+  ac.forEach(c => acoesCart[c.ticker]=c);
+
+  // Anota categoria em cada row para visão combinada
+  fiisData.forEach(r => { r._cat='fii'; r._seg=r.segmento; });
+  acoesData.forEach(r => { r._cat='acao'; r._seg=r.setor; });
+
   render(); updateSummary(); updateLastUpdate();
 }
 
