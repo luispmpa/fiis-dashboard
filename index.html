@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Carteira — FIIs & Ações</title>
+<title>Finance Dashboard — FIIs & Ações</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -143,12 +143,33 @@ input.cell-input:focus { border-color:var(--blue); }
 .btn-refresh svg { transition:transform .6s; }
 .btn-refresh.refreshing svg { animation:spin .7s linear infinite; }
 .btn-refresh.refreshing { border-color:var(--accent); color:var(--accent); }
+/* ── Navegação principal ── */
+.nav-tabs { display:flex; gap:2px; }
+.nav-tab { font-size:12px; font-weight:500; font-family:var(--sans); padding:6px 18px; border-radius:6px; border:none; background:transparent; color:var(--muted2); cursor:pointer; transition:all .15s; letter-spacing:.02em; }
+.nav-tab.active { background:var(--bg2); color:var(--text); }
+.nav-tab:hover:not(.active) { color:var(--text); }
+
+/* ── Sistema de páginas ── */
+.page { display:none; }
+.page.active { display:block; }
+
+/* ── Placeholder (Agenda / IR / Notícias ainda não implementados) ── */
+.coming-soon { padding:120px 32px; text-align:center; color:var(--muted); }
+.coming-soon .cs-icon { font-size:36px; display:block; margin-bottom:16px; opacity:.5; }
+.coming-soon h3 { font-size:16px; font-weight:500; color:var(--muted2); margin-bottom:8px; }
+.coming-soon p { font-size:13px; line-height:1.6; max-width:380px; margin:0 auto; }
 </style>
 </head>
 <body>
 
 <header>
-  <div class="logo">CARTEIRA<span>/</span>FIIs & AÇÕES</div>
+  <div class="logo">FINANCE<span>/</span>DASH</div>
+  <nav class="nav-tabs" id="nav-tabs">
+    <button class="nav-tab active" data-page="carteira">Carteira</button>
+    <button class="nav-tab" data-page="agenda">Agenda</button>
+    <button class="nav-tab" data-page="ir">IR</button>
+    <button class="nav-tab" data-page="noticias">Notícias</button>
+  </nav>
   <div style="display:flex;align-items:center;gap:12px">
     <span id="last-update">—</span>
     <button id="btn-refresh" class="btn-refresh" onclick="manualRefresh()" title="Atualizar cotações e dividendos">
@@ -157,7 +178,7 @@ input.cell-input:focus { border-color:var(--blue); }
     </button>
   </div>
 </header>
-
+<div id="page-carteira" class="page active">
 <div class="summary">
   <div class="s-card"><div class="s-label">Patrimônio atual</div><div class="s-value" id="s-pat">R$ 0,00</div><div class="s-sub" id="s-pat-sub">custo: R$ 0,00</div></div>
   <div class="s-card"><div class="s-label">Renda mensal est.</div><div class="s-value" id="s-renda">R$ 0,00</div><div class="s-sub">últimos dividendos × cotas</div></div>
@@ -188,7 +209,31 @@ input.cell-input:focus { border-color:var(--blue); }
 <div id="table-area">
   <div class="loading-state"><div class="spin"></div>carregando dados...</div>
 </div>
+</div><!-- /page-carteira -->
 
+<div id="page-agenda" class="page">
+  <div class="coming-soon">
+    <span class="cs-icon">📅</span>
+    <h3>Agenda de Dividendos</h3>
+    <p>Calendário de pagamentos, datas COM e projeção de renda mensal por ativo. Em breve.</p>
+  </div>
+</div>
+
+<div id="page-ir" class="page">
+  <div class="coming-soon">
+    <span class="cs-icon">🧾</span>
+    <h3>Calculadora de IR</h3>
+    <p>Apuração mensal de ganhos, cálculo do DARF para FIIs (20%) e Ações (15%), controle de prejuízos acumulados. Em breve.</p>
+  </div>
+</div>
+
+<div id="page-noticias" class="page">
+  <div class="coming-soon">
+    <span class="cs-icon">📰</span>
+    <h3>Notícias do Mercado</h3>
+    <p>Feed de notícias filtradas pelos tickers da sua carteira, com sentimento e relevância. Em breve.</p>
+  </div>
+</div>
 <div class="modal-overlay" id="modal">
   <div class="modal">
     <h2>Adicionar ativo</h2>
@@ -669,7 +714,16 @@ async function manualRefresh() {
   btn.classList.remove('refreshing');
   label.textContent = origText;
 }
-
+// ── Navegação entre páginas ──
+document.getElementById('nav-tabs').querySelectorAll('.nav-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.getElementById('nav-tabs').querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const page = tab.dataset.page;
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+  });
+});
 load();
 // recarrega dados do Supabase a cada 60 minutos
 setInterval(() => load(), 60 * 60 * 1000);
