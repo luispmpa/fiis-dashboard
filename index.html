@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FII Dashboard</title>
+<title>Carteira — FIIs & Ações</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -67,6 +67,18 @@ th.sort-desc::after { content:' ↓'; color:var(--accent); }
 .seg-hibrido { background:rgba(255,179,71,.10); color:#ffd08a; }
 .seg-shop    { background:rgba(180,130,255,.12); color:#c9a8ff; }
 .seg-varejo  { background:rgba(255,95,95,.10); color:#ff9090; }
+/* Setores de ações */
+.seg-financeiro  { background:rgba(77,159,255,.12); color:#7ab8ff; }
+.seg-energia     { background:rgba(61,255,160,.10); color:#6dffc4; }
+.seg-petroleo    { background:rgba(255,179,71,.10); color:#ffd08a; }
+.seg-tecnologia  { background:rgba(180,130,255,.12); color:#c9a8ff; }
+.seg-saude       { background:rgba(255,95,95,.10); color:#ff9090; }
+.seg-consumo     { background:rgba(255,220,100,.10); color:#ffe580; }
+.seg-industria   { background:rgba(140,200,255,.10); color:#a8d4ff; }
+.seg-outros      { background:rgba(120,120,140,.12); color:#aaaacc; }
+/* Badge categoria (FII / Ação) */
+.cat-fii  { background:rgba(61,255,160,.10); color:#6dffc4; font-size:10px; font-weight:600; padding:2px 7px; border-radius:3px; font-family:var(--sans); letter-spacing:.04em; }
+.cat-acao { background:rgba(77,159,255,.12); color:#7ab8ff; font-size:10px; font-weight:600; padding:2px 7px; border-radius:3px; font-family:var(--sans); letter-spacing:.04em; }
 
 .up { color:var(--accent); } .down { color:var(--red); } .flat { color:var(--muted2); }
 .pl-pos { color:var(--accent); } .pl-neg { color:var(--red); }
@@ -129,7 +141,7 @@ input.cell-input:focus { border-color:var(--blue); }
 <body>
 
 <header>
-  <div class="logo">FII<span>/</span>DASHBOARD</div>
+  <div class="logo">CARTEIRA<span>/</span>FIIs & AÇÕES</div>
   <span id="last-update">—</span>
 </header>
 
@@ -141,7 +153,12 @@ input.cell-input:focus { border-color:var(--blue); }
 </div>
 
 <div class="toolbar">
-  <div class="tabs">
+  <div class="tabs" id="cat-tabs">
+    <button class="tab active" data-cat="fii">FIIs</button>
+    <button class="tab" data-cat="acao">Ações</button>
+    <button class="tab" data-cat="all">Todos</button>
+  </div>
+  <div class="tabs" id="view-tabs" style="margin-left:8px">
     <button class="tab active" data-tab="all">Todos os ativos</button>
     <button class="tab" data-tab="cart">Minha carteira</button>
   </div>
@@ -162,20 +179,21 @@ input.cell-input:focus { border-color:var(--blue); }
 <div class="modal-overlay" id="modal">
   <div class="modal">
     <h2>Adicionar ativo</h2>
-    <p>Digite o ticker — os dados são carregados automaticamente.</p>
+    <p>Digite o ticker — FII (ex: MXRF11) ou Ação (ex: PETR4).</p>
     <div class="field">
       <label>Ticker</label>
-      <input id="m-ticker" type="text" placeholder="ex: VGIR11" maxlength="7" autocomplete="off">
+      <input id="m-ticker" type="text" placeholder="ex: MXRF11 ou PETR4" maxlength="7" autocomplete="off">
       <div class="ticker-status" id="ticker-status"></div>
     </div>
     <div class="modal-preview" id="modal-preview">
+      <div class="preview-row"><span>Categoria</span><span id="prev-cat">—</span></div>
       <div class="preview-row"><span>Nome</span><span id="prev-nome">—</span></div>
-      <div class="preview-row"><span>Segmento</span><span id="prev-seg">—</span></div>
+      <div class="preview-row"><span>Segmento/Setor</span><span id="prev-seg">—</span></div>
       <div class="preview-row"><span>Preço atual</span><span id="prev-preco">—</span></div>
       <div class="preview-row"><span>Último div.</span><span id="prev-div">—</span></div>
     </div>
     <div class="field">
-      <label>Cotas (opcional)</label>
+      <label>Quantidade (opcional)</label>
       <input id="m-qty" type="number" min="0" placeholder="0">
     </div>
     <div class="field">
