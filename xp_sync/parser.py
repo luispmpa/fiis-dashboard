@@ -17,8 +17,9 @@ Expected PDF text structure (may be fragmented across lines):
 import io
 import logging
 import re
-from dataclasses import dataclass
-from typing import List
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import List, Optional
 
 import pikepdf
 import pdfplumber
@@ -28,10 +29,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class Negociacao:
-    tipo: str       # 'C' (compra) or 'V' (venda)
-    ticker: str     # e.g. 'RZAT11'
+    tipo: str              # 'C' (compra) or 'V' (venda)
+    ticker: str            # e.g. 'RZAT11'
     quantidade: int
     preco: float
+    data: Optional[str] = field(default=None)  # ISO datetime string from nota
 
 
 def decrypt_pdf(pdf_bytes: bytes, password: str) -> bytes:
@@ -70,6 +72,43 @@ def _parse_price(price_str: str) -> float:
     return float(price_str.replace(".", "").replace(",", "."))
 
 
+def extract_trade_date(text: str) -> Optional[str]:
+    """
+    Extract the trade date ("data pregão") from the nota text.
+    Returns an ISO 8601 UTC datetime string, or None if not found.
+
+    Handles patterns like:
+        "Data pregão 29/04/2026"
+        "Data do Pregão: 29/04/2026"
+        "Data Pregão 29/04/2026"
+    """
+    pattern = re.compile(
+        r"[Dd]ata\s+(?:d[eo]\s+)?[Pp]reg[ãa]o\s*:?\s*(\d{2}/\d{2}/\d{4})",
+        re.IGNORECASE,
+    )
+    m = pattern.search(text)
+    if m:
+        date_str = m.group(1)
+        try:
+            dt = datetime.strptime(date_str, "%d/%m/%Y").replace(tzinfo=timezone.utc)
+            return dt.isoformat()
+        except ValueError:
+            logger.warning(f"Data encontrada mas inválida: {date_str}")
+
+    # Fallback: first DD/MM/YYYY in document header (first 500 chars)
+    fallback = re.search(r"\b(\d{2}/\d{2}/\d{4})\b", text[:500])
+    if fallback:
+        try:
+            dt = datetime.strptime(fallback.group(1), "%d/%m/%Y").replace(tzinfo=timezone.utc)
+            logger.info(f"Data extraída via fallback: {fallback.group(1)}")
+            return dt.isoformat()
+        except ValueError:
+            pass
+
+    logger.warning("Data do pregão não encontrada no PDF")
+    return None
+
+
 def parse_negociacoes(text: str) -> List[Negociacao]:
     """
     Parse trading operations from XP nota de negociação text.
@@ -83,12 +122,15 @@ def parse_negociacoes(text: str) -> List[Negociacao]:
     """
     negociacoes: List[Negociacao] = []
     seen: set = set()
+    trade_date = extract_trade_date(text)
+    if trade_date:
+        logger.info(f"Data do pregão: {trade_date}")
 
     def emit(tipo: str, ticker: str, quantidade: int, preco: float) -> None:
         key = (tipo, ticker, quantidade, preco)
         if key not in seen:
             seen.add(key)
-            negociacoes.append(Negociacao(tipo, ticker, quantidade, preco))
+            negociacoes.append(Negociacao(tipo, ticker, quantidade, preco, data=trade_date))
             logger.info(f"Operação: {tipo} {ticker} x{quantidade} @ R${preco:.2f}")
         else:
             logger.debug(f"Duplicata ignorada: {tipo} {ticker} x{quantidade} @ R${preco:.2f}")
