@@ -409,7 +409,36 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
     </div>
   </div>
 </div>
-
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h2>Adicionar ativo</h2>
+    <p>Digite o ticker — FII (ex: MXRF11) ou Ação (ex: PETR4).</p>
+    <div class="field">
+      <label>Ticker</label>
+      <input id="m-ticker" type="text" placeholder="ex: MXRF11 ou PETR4" maxlength="7" autocomplete="off">
+      <div class="ticker-status" id="ticker-status"></div>
+    </div>
+    <div class="modal-preview" id="modal-preview">
+      <div class="preview-row"><span>Categoria</span><span id="prev-cat">—</span></div>
+      <div class="preview-row"><span>Nome</span><span id="prev-nome">—</span></div>
+      <div class="preview-row"><span>Segmento/Setor</span><span id="prev-seg">—</span></div>
+      <div class="preview-row"><span>Preço atual</span><span id="prev-preco">—</span></div>
+      <div class="preview-row"><span>Último div.</span><span id="prev-div">—</span></div>
+    </div>
+    <div class="field">
+      <label>Quantidade (opcional)</label>
+      <input id="m-qty" type="number" min="0" placeholder="0">
+    </div>
+    <div class="field">
+      <label>Preço médio (opcional)</label>
+      <input id="m-pm" type="number" min="0" step="0.01" placeholder="0,00">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
+      <button class="btn-confirm" id="btn-confirm" disabled onclick="confirmAdd()">Adicionar</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="modal-detail">
   <div class="modal modal-detail">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
