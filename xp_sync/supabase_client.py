@@ -102,21 +102,25 @@ def ensure_ticker_in_mercado(ticker: str) -> None:
 
 # ── fiis_negociacoes ──────────────────────────────────────────────────────────
 
-def insert_negociacao(ticker: str, tipo: str, quantidade: int, preco: float) -> None:
+def insert_negociacao(
+    ticker: str, tipo: str, quantidade: int, preco: float, data: str | None = None
+) -> None:
     """Record an individual trade in fiis_negociacoes."""
-    payload = {
+    payload: dict = {
         "ticker": ticker,
         "tipo": tipo,
         "quantidade": quantidade,
         "preco": round(preco, 2),
     }
+    if data:
+        payload["data_negociacao"] = data
     _post("fiis_negociacoes", payload, "return=minimal")
-    logger.debug(f"{ticker}: negociação registrada — {tipo} {quantidade}x @ R${preco:.2f}")
+    logger.debug(f"{ticker}: negociação registrada — {tipo} {quantidade}x @ R${preco:.2f} em {data or 'agora'}")
 
 
 # ── Business logic ────────────────────────────────────────────────────────────
 
-def process_compra(ticker: str, quantidade: int, preco: float) -> None:
+def process_compra(ticker: str, quantidade: int, preco: float, data: str | None = None) -> None:
     """
     Record a purchase: recalculate weighted average price and add quantity.
     novo_pm = (qtd_atual * pm_atual + qtd_compra * preco_compra) / (qtd_atual + qtd_compra)
@@ -137,10 +141,10 @@ def process_compra(ticker: str, quantidade: int, preco: float) -> None:
 
     ensure_ticker_in_mercado(ticker)
     upsert_posicao(ticker, nova_qtd, novo_pm)
-    insert_negociacao(ticker, "C", quantidade, preco)
+    insert_negociacao(ticker, "C", quantidade, preco, data)
 
 
-def process_venda(ticker: str, quantidade: int, preco: float) -> None:
+def process_venda(ticker: str, quantidade: int, preco: float, data: str | None = None) -> None:
     """
     Record a sale: subtract quantity, preserve average price.
     """
@@ -158,4 +162,4 @@ def process_venda(ticker: str, quantidade: int, preco: float) -> None:
         f"@ R${preco:.2f} (PM mantido: R${pm_atual:.2f})"
     )
     upsert_posicao(ticker, nova_qtd, pm_atual)
-    insert_negociacao(ticker, "V", quantidade, preco)
+    insert_negociacao(ticker, "V", quantidade, preco, data)

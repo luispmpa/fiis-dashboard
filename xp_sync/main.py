@@ -99,11 +99,11 @@ def run_once() -> int:
                     try:
                         if neg.tipo == "C":
                             supabase_client.process_compra(
-                                neg.ticker, neg.quantidade, neg.preco
+                                neg.ticker, neg.quantidade, neg.preco, neg.data
                             )
                         else:
                             supabase_client.process_venda(
-                                neg.ticker, neg.quantidade, neg.preco
+                                neg.ticker, neg.quantidade, neg.preco, neg.data
                             )
                     except Exception as e:
                         logger.error(
