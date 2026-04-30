@@ -352,9 +352,17 @@ function setSort(col) {
 }
 
 function render() {
-  let rows=[...allData];
-  if (currentTab==='cart') rows=rows.filter(r=>{const c=cartData[r.ticker];return c&&Number(c.quantidade)>0;});
-  if (searchTerm) { const s=searchTerm.toLowerCase(); rows=rows.filter(r=>r.ticker.toLowerCase().includes(s)||(r.nome||'').toLowerCase().includes(s)||(r.segmento||'').toLowerCase().includes(s)); }
+  const baseRows = currentCat==='fii' ? [...fiisData]
+                 : currentCat==='acao' ? [...acoesData]
+                 : [...fiisData, ...acoesData];
+  const showCat = currentCat==='all';
+
+  let rows = baseRows;
+  if (currentTab==='cart') rows=rows.filter(r=>{const c=_getCart(r);return c&&Number(c.quantidade)>0;});
+  if (searchTerm) {
+    const s=searchTerm.toLowerCase();
+    rows=rows.filter(r=>r.ticker.toLowerCase().includes(s)||(r.nome||'').toLowerCase().includes(s)||(r._seg||'').toLowerCase().includes(s));
+  }
   if (sortCol && SORT_KEY[sortCol]) {
     const fn=SORT_KEY[sortCol];
     rows.sort((a,b)=>{
@@ -371,8 +379,10 @@ function render() {
     return;
   }
 
+  const segLabel = currentCat==='fii' ? 'Segmento' : currentCat==='acao' ? 'Setor' : 'Segmento/Setor';
+
   const tbody=rows.map(r=>{
-    const c=cartData[r.ticker]||{quantidade:0,preco_medio:0};
+    const c=_getCart(r);
     const qty=Number(c.quantidade)||0, pm=Number(c.preco_medio)||0;
     const pc=Number(r.preco_atual)||0, div=Number(r.ultimo_div)||null;
     const pos=qty*pc, custo=qty*pm;
@@ -380,23 +390,26 @@ function render() {
     let sinal='<span class="signal sig-none">—</span>';
     if (pm>0&&pc>0){const d=((pc-pm)/pm)*100;sinal=d<-3?'<span class="signal sig-buy">↓ COMPRAR</span>':d>5?'<span class="signal sig-sell">↑ VENDER</span>':'<span class="signal sig-hold">→ MANTER</span>';}
     const vdC=r.var_dia>=0?'up':'down', vsC=r.var_semanal>=0?'up':'down', plC=pl!=null?(pl>=0?'pl-pos':'pl-neg'):'';
+    const catBadge = r._cat==='fii' ? '<span class="cat-fii">FII</span>' : '<span class="cat-acao">AÇÃO</span>';
+    const catCol = showCat ? `<td>${catBadge}</td>` : '';
     return `<tr>
-      <td><span class="ticker-label" onclick="openDetailModal('${r.ticker}')">${r.ticker}</span></td>
+      <td><span class="ticker-label" onclick="openDetailModal('${r.ticker}','${r._cat}')">${r.ticker}</span></td>
+      ${catCol}
       <td>${r.nome||'—'}</td>
-      <td><span class="seg-pill ${segClass(r.segmento)}">${r.segmento||'—'}</span></td>
+      <td><span class="seg-pill ${segClass(r._seg)}">${r._seg||'—'}</span></td>
       <td>${fmtR(r.preco_atual)}</td>
       <td class="${vdC}">${r.var_dia!=null?fmtP(r.var_dia):'—'}</td>
       <td class="${vsC}">${r.var_semanal!=null?fmtP(r.var_semanal):'—'}</td>
       <td>${div!=null?fmtR(div):'—'}</td>
       <td>${r.dy_percent!=null?fmtN(r.dy_percent)+'%':'—'}</td>
-      <td><input class="cell-input" type="number" min="0" step="1" value="${qty||''}" placeholder="0" data-ticker="${r.ticker}" data-field="qty"></td>
-      <td><input class="cell-input" type="number" min="0" step="0.01" value="${pm||''}" placeholder="0,00" data-ticker="${r.ticker}" data-field="pm"></td>
+      <td><input class="cell-input" type="number" min="0" step="1" value="${qty||''}" placeholder="0" data-ticker="${r.ticker}" data-cat="${r._cat}" data-field="qty"></td>
+      <td><input class="cell-input" type="number" min="0" step="0.01" value="${pm||''}" placeholder="0,00" data-ticker="${r.ticker}" data-cat="${r._cat}" data-field="pm"></td>
       <td>${qty>0?fmtR(pos):'—'}</td>
       <td class="${plC}">${pl!=null?fmtR(pl)+(plPct!=null?' ('+fmtP(plPct)+')':''):'—'}</td>
       <td>${sinal}</td>
       <td style="display:flex;gap:6px;align-items:center">
-        <button class="btn-save" data-ticker="${r.ticker}">salvar</button>
-        <button class="btn-del" data-ticker="${r.ticker}" title="Excluir ticker">
+        <button class="btn-save" data-ticker="${r.ticker}" data-cat="${r._cat}">salvar</button>
+        <button class="btn-del" data-ticker="${r.ticker}" data-cat="${r._cat}" title="Excluir ticker">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
         </button>
       </td>
@@ -405,13 +418,14 @@ function render() {
 
   const sc=sortCol, sd=sortDir;
   function th(label,col,align='right'){const a=align==='left'?'text-align:left':'';const cls=['sortable',sc===col?(sd>0?'sort-asc':'sort-desc'):''].join(' ').trim();return `<th class="${cls}" style="${a}" onclick="setSort('${col}')">${label}</th>`;}
+  const catTh = showCat ? th('Categoria','cat','left') : '';
   area.innerHTML=`<div class="table-wrap"><table>
-    <thead><tr>${th('Ticker','ticker','left')}${th('Nome','nome','left')}${th('Segmento','seg','left')}${th('Preço','preco')}${th('Var. dia','vd')}${th('Var. sem.','vs')}${th('Últ. div.','div')}${th('DY%','dy')}${th('Cotas','cotas')}${th('P. médio','pm')}${th('Posição','pos')}${th('P&L','pl')}<th>Sinal</th><th></th></tr></thead>
+    <thead><tr>${th('Ticker','ticker','left')}${catTh}${th('Nome','nome','left')}${th(segLabel,'seg','left')}${th('Preço','preco')}${th('Var. dia','vd')}${th('Var. sem.','vs')}${th('Últ. div.','div')}${th('DY%','dy')}${th('Qtd','cotas')}${th('P. médio','pm')}${th('Posição','pos')}${th('P&L','pl')}<th>Sinal</th><th></th></tr></thead>
     <tbody>${tbody}</tbody>
   </table></div>`;
 
-  document.querySelectorAll('.btn-save').forEach(b=>b.addEventListener('click',()=>save(b.dataset.ticker)));
-  document.querySelectorAll('.btn-del').forEach(b=>b.addEventListener('click',()=>openDelModal(b.dataset.ticker)));
+  document.querySelectorAll('.btn-save').forEach(b=>b.addEventListener('click',()=>save(b.dataset.ticker,b.dataset.cat)));
+  document.querySelectorAll('.btn-del').forEach(b=>b.addEventListener('click',()=>openDelModal(b.dataset.ticker,b.dataset.cat)));
 }
 
 async function save(ticker) {
