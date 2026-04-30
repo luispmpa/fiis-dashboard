@@ -428,11 +428,13 @@ function render() {
   document.querySelectorAll('.btn-del').forEach(b=>b.addEventListener('click',()=>openDelModal(b.dataset.ticker,b.dataset.cat)));
 }
 
-async function save(ticker) {
+async function save(ticker, cat) {
   const qty=Number(document.querySelector(`input[data-ticker="${ticker}"][data-field="qty"]`).value)||0;
   const pm=Number(document.querySelector(`input[data-ticker="${ticker}"][data-field="pm"]`).value)||0;
-  await fetch(SUPA_URL+'/rest/v1/fiis_carteira?ticker=eq.'+ticker,{method:'PATCH',headers:{...H,'Prefer':'return=minimal'},body:JSON.stringify({quantidade:qty,preco_medio:pm})});
-  cartData[ticker]={ticker,quantidade:qty,preco_medio:pm};
+  const table = cat==='acao' ? 'acoes_carteira' : 'fiis_carteira';
+  await fetch(SUPA_URL+'/rest/v1/'+table+'?ticker=eq.'+ticker,{method:'PATCH',headers:{...H,'Prefer':'return=minimal'},body:JSON.stringify({quantidade:qty,preco_medio:pm})});
+  if (cat==='acao') acoesCart[ticker]={ticker,quantidade:qty,preco_medio:pm};
+  else fiisCart[ticker]={ticker,quantidade:qty,preco_medio:pm};
   const btn=document.querySelector(`.btn-save[data-ticker="${ticker}"]`);
   const orig=btn.textContent;
   btn.textContent='✓'; btn.style.color='var(--accent)'; btn.style.borderColor='var(--accent)';
@@ -440,20 +442,24 @@ async function save(ticker) {
   updateSummary();
 }
 
-async function openDetailModal(ticker) {
-  const r=allData.find(x=>x.ticker===ticker)||{};
-  const c=cartData[ticker]||{quantidade:0,preco_medio:0};
+async function openDetailModal(ticker, cat) {
+  const src = cat==='acao' ? acoesData : fiisData;
+  const r=src.find(x=>x.ticker===ticker)||{};
+  const c=(cat==='acao'?acoesCart:fiisCart)[ticker]||{quantidade:0,preco_medio:0};
   const qty=Number(c.quantidade)||0, pm=Number(c.preco_medio)||0;
   const pc=Number(r.preco_atual)||0;
   const pos=qty*pc, custo=qty*pm, pl=pm>0?pos-custo:null, plPct=(pm>0&&custo>0)?((pos-custo)/custo)*100:null;
+  const segStr = (r._seg||'—');
+  const catBadge = cat==='fii' ? ' · <span class="cat-fii">FII</span>' : ' · <span class="cat-acao">AÇÃO</span>';
   document.getElementById('det-ticker').textContent=ticker;
-  document.getElementById('det-nome').textContent=(r.nome||'—')+' · '+(r.segmento||'—');
+  document.getElementById('det-nome').innerHTML=(r.nome||'—')+' · '+segStr+catBadge;
+  const dyLabel = cat==='acao' ? 'DY% anual' : 'DY% mensal';
   const cards=[
     ['Preço atual',fmtR(pc),''],
     ['Var. dia',r.var_dia!=null?fmtP(r.var_dia):'—',r.var_dia>=0?'up':'down'],
     ['Último dividendo',fmtR(r.ultimo_div),''],
-    ['DY%',r.dy_percent!=null?fmtN(r.dy_percent)+'%':'—',''],
-    ['Cotas',qty||'—',''],
+    [dyLabel,r.dy_percent!=null?fmtN(r.dy_percent)+'%':'—',''],
+    ['Quantidade',qty||'—',''],
     ['Preço médio',pm>0?fmtR(pm):'—',''],
     ['Posição atual',qty>0?fmtR(pos):'—',''],
     ['P&L',pl!=null?fmtR(pl)+(plPct!=null?' ('+fmtP(plPct)+')':''):'—',pl!=null?(pl>=0?'up':'down'):''],
@@ -461,10 +467,10 @@ async function openDetailModal(ticker) {
   document.getElementById('det-grid').innerHTML=cards.map(([label,val,cls])=>`
     <div class="detail-card"><div class="s-label">${label}</div><div class="s-value ${cls}">${val}</div></div>`).join('');
   document.getElementById('modal-detail').classList.add('open');
-  // Load trade history
   document.getElementById('det-neg-wrap').innerHTML='<div style="color:var(--muted);font-family:var(--mono);font-size:12px;padding:16px 0">carregando...</div>';
   try {
-    const res=await fetch(SUPA_URL+'/rest/v1/fiis_negociacoes?ticker=eq.'+ticker+'&order=data_negociacao.desc&select=*',{headers:H});
+    const negTable = cat==='acao' ? 'acoes_negociacoes' : 'fiis_negociacoes';
+    const res=await fetch(SUPA_URL+'/rest/v1/'+negTable+'?ticker=eq.'+ticker+'&order=data_negociacao.desc&select=*',{headers:H});
     const negs=await res.json();
     if (!negs.length) {
       document.getElementById('det-neg-wrap').innerHTML='<div style="color:var(--muted);font-family:var(--mono);font-size:12px;padding:16px 0">Nenhuma negociação registrada.</div>';
@@ -472,21 +478,21 @@ async function openDetailModal(ticker) {
     }
     let totalC=0,totalV=0,totalGasto=0;
     negs.forEach(n=>{if(n.tipo==='C'){totalC+=n.quantidade;totalGasto+=n.quantidade*n.preco;}else{totalV+=n.quantidade;}});
-    const rows=negs.map(n=>{
+    const negRows=negs.map(n=>{
       const dt=new Date(n.data_negociacao);
       const dtStr=String(dt.getUTCDate()).padStart(2,'0')+'/'+String(dt.getUTCMonth()+1).padStart(2,'0')+'/'+dt.getUTCFullYear();
       const badge=n.tipo==='C'?'<span class="badge-c">COMPRA</span>':'<span class="badge-v">VENDA</span>';
-      const total=n.quantidade*n.preco;
-      return `<tr><td>${dtStr}</td><td>${badge}</td><td>${n.quantidade}</td><td>${fmtR(n.preco)}</td><td>${fmtR(total)}</td></tr>`;
+      return `<tr><td>${dtStr}</td><td>${badge}</td><td>${n.quantidade}</td><td>${fmtR(n.preco)}</td><td>${fmtR(n.quantidade*n.preco)}</td></tr>`;
     }).join('');
+    const qtdLabel = cat==='acao' ? 'ações' : 'cotas';
     document.getElementById('det-neg-wrap').innerHTML=`
       <table class="neg-table">
         <thead><tr><th>Data</th><th>Tipo</th><th>Qtd</th><th>Preço unit.</th><th>Total</th></tr></thead>
-        <tbody>${rows}</tbody>
+        <tbody>${negRows}</tbody>
       </table>
       <div style="display:flex;gap:16px;margin-top:14px;font-family:var(--mono);font-size:11px;color:var(--muted2)">
-        <span>Total comprado: <b style="color:var(--accent)">${totalC} cotas</b></span>
-        <span>Total vendido: <b style="color:var(--red)">${totalV} cotas</b></span>
+        <span>Total comprado: <b style="color:var(--accent)">${totalC} ${qtdLabel}</b></span>
+        <span>Total vendido: <b style="color:var(--red)">${totalV} ${qtdLabel}</b></span>
         <span>Capital investido: <b style="color:var(--text)">${fmtR(totalGasto)}</b></span>
       </div>`;
   } catch(e) {
@@ -496,26 +502,28 @@ async function openDetailModal(ticker) {
 function closeDetailModal() { document.getElementById('modal-detail').classList.remove('open'); }
 document.getElementById('modal-detail').addEventListener('click',e=>{if(e.target===document.getElementById('modal-detail'))closeDetailModal();});
 
-let delTicker=null;
-function openDelModal(ticker) {
-  delTicker=ticker;
-  document.getElementById('del-msg').textContent=`Isso remove "${ticker}" da carteira e da lista de monitoramento. Não pode ser desfeito.`;
+let delTicker=null, delCat=null;
+function openDelModal(ticker, cat) {
+  delTicker=ticker; delCat=cat;
+  const tipo = cat==='acao' ? 'ação' : 'FII';
+  document.getElementById('del-msg').textContent=`Isso remove o ${tipo} "${ticker}" da carteira e da lista de monitoramento. Não pode ser desfeito.`;
   document.getElementById('modal-del').classList.add('open');
 }
-function closeDelModal() { document.getElementById('modal-del').classList.remove('open'); delTicker=null; }
+function closeDelModal() { document.getElementById('modal-del').classList.remove('open'); delTicker=null; delCat=null; }
 document.getElementById('modal-del').addEventListener('click',e=>{if(e.target===document.getElementById('modal-del'))closeDelModal();});
 
 async function confirmDelete() {
   if (!delTicker) return;
-  const ticker=delTicker;
+  const ticker=delTicker, cat=delCat;
+  const prefix = cat==='acao' ? 'acoes' : 'fiis';
   document.getElementById('btn-del-confirm').disabled=true;
   document.getElementById('btn-del-confirm').textContent='Excluindo...';
   await Promise.all([
-    fetch(SUPA_URL+'/rest/v1/fiis_carteira?ticker=eq.'+ticker,{method:'DELETE',headers:H}),
-    fetch(SUPA_URL+'/rest/v1/fiis_mercado?ticker=eq.'+ticker,{method:'DELETE',headers:H}),
+    fetch(SUPA_URL+'/rest/v1/'+prefix+'_carteira?ticker=eq.'+ticker,{method:'DELETE',headers:H}),
+    fetch(SUPA_URL+'/rest/v1/'+prefix+'_mercado?ticker=eq.'+ticker,{method:'DELETE',headers:H}),
   ]);
-  delete cartData[ticker];
-  allData=allData.filter(r=>r.ticker!==ticker);
+  if (cat==='acao') { delete acoesCart[ticker]; acoesData=acoesData.filter(r=>r.ticker!==ticker); }
+  else { delete fiisCart[ticker]; fiisData=fiisData.filter(r=>r.ticker!==ticker); }
   closeDelModal();
   document.getElementById('btn-del-confirm').disabled=false;
   document.getElementById('btn-del-confirm').textContent='Excluir';
