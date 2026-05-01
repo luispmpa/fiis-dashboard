@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Carteira — FIIs & Ações</title>
+<title>Finance Dashboard — FIIs & Ações</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -143,12 +143,125 @@ input.cell-input:focus { border-color:var(--blue); }
 .btn-refresh svg { transition:transform .6s; }
 .btn-refresh.refreshing svg { animation:spin .7s linear infinite; }
 .btn-refresh.refreshing { border-color:var(--accent); color:var(--accent); }
+
+/* ── Navegação principal ── */
+.nav-tabs { display:flex; gap:2px; }
+.nav-tab { font-size:12px; font-weight:500; font-family:var(--sans); padding:6px 18px; border-radius:6px; border:none; background:transparent; color:var(--muted2); cursor:pointer; transition:all .15s; letter-spacing:.02em; }
+.nav-tab.active { background:var(--bg2); color:var(--text); }
+.nav-tab:hover:not(.active) { color:var(--text); }
+
+/* ── Sistema de páginas ── */
+.page { display:none; }
+.page.active { display:block; }
+
+/* ── Agenda ── */
+.agenda-wrap { padding:28px 32px; }
+.agenda-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; flex-wrap:wrap; gap:12px; }
+.agenda-header h2 { font-size:16px; font-weight:600; }
+.month-nav { display:flex; align-items:center; gap:8px; }
+.month-nav button { background:var(--bg2); border:1px solid var(--line2); color:var(--muted2); width:32px; height:32px; border-radius:7px; cursor:pointer; font-size:14px; transition:all .15s; display:flex; align-items:center; justify-content:center; }
+.month-nav button:hover { border-color:var(--accent); color:var(--accent); }
+.month-nav .month-label { font-family:var(--mono); font-size:14px; font-weight:500; min-width:130px; text-align:center; }
+.agenda-cards { display:flex; gap:12px; margin-bottom:24px; }
+.agenda-card { flex:1; background:var(--bg1); border:1px solid var(--line); border-radius:10px; padding:16px 20px; }
+.agenda-card .s-label { font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-bottom:6px; }
+.agenda-card .s-value { font-family:var(--mono); font-size:18px; font-weight:500; }
+.agenda-card .s-sub { font-family:var(--mono); font-size:11px; color:var(--muted); margin-top:3px; }
+.ag-section-title { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted2); margin-bottom:12px; font-weight:500; display:flex; align-items:center; gap:8px; }
+.ag-section-title .ag-count { background:var(--bg3); color:var(--muted2); font-size:10px; padding:2px 8px; border-radius:10px; }
+.events-list { display:flex; flex-direction:column; gap:6px; margin-bottom:28px; }
+.event-row { display:flex; align-items:center; gap:14px; background:var(--bg1); border:1px solid var(--line); border-radius:8px; padding:12px 16px; transition:background .12s; flex-wrap:wrap; }
+.event-row:hover { background:var(--bg2); }
+.event-row.ev-derived { border-left:3px solid rgba(61,255,160,.25); }
+.event-row.ev-confirmed { border-left:3px solid var(--accent); }
+.event-row.ev-paid { opacity:.55; }
+.ev-date { font-family:var(--mono); font-size:12px; color:var(--muted2); min-width:70px; }
+.ev-ticker { font-family:var(--mono); font-size:13px; font-weight:500; color:var(--blue); min-width:72px; cursor:pointer; }
+.ev-ticker:hover { text-decoration:underline; }
+.ev-type-pill { font-size:10px; font-weight:600; padding:2px 8px; border-radius:3px; font-family:var(--sans); letter-spacing:.04em; }
+.evt-dividendo { background:rgba(61,255,160,.10); color:var(--accent); }
+.evt-jcp { background:rgba(77,159,255,.12); color:#7ab8ff; }
+.evt-resultado { background:rgba(255,179,71,.10); color:var(--amber); }
+.evt-assembleia { background:rgba(167,139,250,.12); color:#a78bfa; }
+.evt-estimado { background:rgba(120,120,140,.12); color:var(--muted2); }
+.ev-desc { font-size:12px; color:var(--muted2); flex:1; min-width:120px; }
+.ev-value { font-family:var(--mono); font-size:12px; color:var(--text); min-width:80px; text-align:right; }
+.ev-qty { font-family:var(--mono); font-size:11px; color:var(--muted); min-width:70px; text-align:right; }
+.ev-income { font-family:var(--mono); font-size:13px; font-weight:500; color:var(--accent); min-width:90px; text-align:right; }
+.ev-status-pill { font-size:10px; font-weight:600; padding:2px 8px; border-radius:3px; font-family:var(--sans); }
+.evs-scheduled { color:var(--muted2); background:var(--bg3); }
+.evs-confirmed { color:var(--accent); background:rgba(61,255,160,.1); }
+.evs-paid { color:var(--muted); background:var(--bg2); }
+.evs-estimated { color:var(--muted); background:var(--bg2); }
+.ev-empty { padding:40px 16px; text-align:center; color:var(--muted); }
+.ev-empty p { font-size:13px; margin-top:6px; line-height:1.6; }
+
+/* === IR Calculator === */
+.ir-wrap { padding:24px 32px; }
+.ir-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+.ir-header h2 { font-family:var(--mono); font-size:16px; font-weight:500; }
+.ir-month-bar { display:flex; align-items:center; gap:10px; }
+.ir-month-bar label { font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+.ir-month-bar select { background:var(--bg2); border:1px solid var(--line2); color:var(--text); font-family:var(--mono); font-size:12px; padding:5px 10px; border-radius:7px; outline:none; cursor:pointer; }
+.ir-month-bar select:focus { border-color:var(--accent); }
+.ir-darf-box { background:var(--bg1); border:1px solid var(--accent); border-radius:12px; padding:20px 24px; margin-bottom:24px; display:flex; align-items:center; justify-content:space-between; }
+.ir-darf-left .ir-darf-label { font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); margin-bottom:6px; }
+.ir-darf-left .ir-darf-amount { font-family:var(--mono); font-size:32px; font-weight:500; color:var(--accent); }
+.ir-darf-left .ir-darf-detail { font-size:11px; color:var(--muted); margin-top:4px; }
+.ir-darf-right { font-size:11px; color:var(--muted2); text-align:right; line-height:1.6; }
+.ir-ok-box { background:var(--bg1); border:1px solid var(--line); border-radius:12px; padding:14px 20px; margin-bottom:24px; color:var(--muted2); font-size:13px; }
+.ir-grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px; }
+.ir-card { background:var(--bg1); border:1px solid var(--line); border-radius:12px; padding:20px; }
+.ir-card-title { font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); padding-bottom:12px; border-bottom:1px solid var(--line); margin-bottom:12px; }
+.ir-row { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); }
+.ir-row:last-child { border-bottom:none; }
+.ir-row-label { font-size:12px; color:var(--muted2); }
+.ir-row-value { font-family:var(--mono); font-size:13px; }
+.ir-ops-section { margin-top:4px; }
+table.ir-ops { width:100%; border-collapse:collapse; }
+table.ir-ops th { padding:9px 14px; font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); text-align:right; border-bottom:1px solid var(--line2); background:var(--bg1); white-space:nowrap; }
+table.ir-ops th:first-child, table.ir-ops th:nth-child(2), table.ir-ops th:nth-child(3) { text-align:left; }
+table.ir-ops td { padding:10px 14px; font-family:var(--mono); font-size:12px; text-align:right; border-bottom:1px solid var(--line); }
+table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-child(3) { text-align:left; font-family:var(--sans); }
+.ir-empty-msg { padding:40px; text-align:center; color:var(--muted); font-size:13px; }
+
+/* === Notícias === */
+.news-wrap { padding:24px 32px; }
+.news-filter-bar { display:flex; align-items:center; gap:10px; margin-bottom:20px; flex-wrap:wrap; }
+.news-select { background:var(--bg2); border:1px solid var(--line2); color:var(--text); font-family:var(--sans); font-size:12px; padding:6px 10px; border-radius:7px; outline:none; cursor:pointer; }
+.news-select:focus { border-color:var(--accent); }
+.news-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:14px; }
+.news-card { background:var(--bg1); border:1px solid var(--line); border-radius:10px; padding:18px; display:flex; flex-direction:column; gap:10px; transition:border-color .15s; }
+.news-card:hover { border-color:var(--line2); }
+.news-card-top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+.news-title { font-size:13px; font-weight:500; line-height:1.5; color:var(--text); flex:1; text-decoration:none; }
+.news-title:hover { color:var(--accent); }
+.news-sent { font-size:10px; font-weight:600; padding:2px 8px; border-radius:3px; font-family:var(--sans); letter-spacing:.04em; white-space:nowrap; align-self:flex-start; }
+.sent-positive { background:rgba(61,255,160,.10); color:var(--accent); }
+.sent-negative { background:rgba(255,95,95,.10); color:var(--red); }
+.sent-neutral  { background:rgba(120,120,140,.10); color:var(--muted2); }
+.news-summary { font-size:12px; color:var(--muted2); line-height:1.55; }
+.news-meta { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.news-source { font-size:11px; color:var(--muted); font-family:var(--mono); }
+.news-date { font-size:11px; color:var(--muted); font-family:var(--mono); }
+.news-tickers { display:flex; gap:4px; flex-wrap:wrap; margin-left:auto; }
+.news-empty { padding:80px 32px; text-align:center; color:var(--muted); }
+.news-empty .cs-icon { font-size:36px; display:block; margin-bottom:16px; opacity:.5; }
+.news-empty h3 { font-size:15px; color:var(--muted2); margin-bottom:8px; }
+.news-empty p { font-size:13px; line-height:1.6; max-width:360px; margin:0 auto; }
+.news-loading { padding:60px; text-align:center; color:var(--muted); font-family:var(--mono); font-size:12px; display:flex; align-items:center; justify-content:center; gap:10px; }
 </style>
 </head>
 <body>
 
 <header>
-  <div class="logo">CARTEIRA<span>/</span>FIIs & AÇÕES</div>
+  <div class="logo">FINANCE<span>/</span>DASH</div>
+  <nav class="nav-tabs" id="nav-tabs">
+    <button class="nav-tab active" data-page="carteira">Carteira</button>
+    <button class="nav-tab" data-page="agenda">Agenda</button>
+    <button class="nav-tab" data-page="ir">IR</button>
+    <button class="nav-tab" data-page="noticias">Notícias</button>
+  </nav>
   <div style="display:flex;align-items:center;gap:12px">
     <span id="last-update">—</span>
     <button id="btn-refresh" class="btn-refresh" onclick="manualRefresh()" title="Atualizar cotações e dividendos">
@@ -158,6 +271,7 @@ input.cell-input:focus { border-color:var(--blue); }
   </div>
 </header>
 
+<div id="page-carteira" class="page active">
 <div class="summary">
   <div class="s-card"><div class="s-label">Patrimônio atual</div><div class="s-value" id="s-pat">R$ 0,00</div><div class="s-sub" id="s-pat-sub">custo: R$ 0,00</div></div>
   <div class="s-card"><div class="s-label">Renda mensal est.</div><div class="s-value" id="s-renda">R$ 0,00</div><div class="s-sub">últimos dividendos × cotas</div></div>
@@ -187,6 +301,112 @@ input.cell-input:focus { border-color:var(--blue); }
 
 <div id="table-area">
   <div class="loading-state"><div class="spin"></div>carregando dados...</div>
+</div>
+</div><!-- /page-carteira -->
+
+<div id="page-agenda" class="page">
+  <div class="agenda-wrap">
+    <div class="agenda-header">
+      <h2>Agenda de Dividendos</h2>
+      <div class="month-nav">
+        <button onclick="agendaPrevMonth()">←</button>
+        <span class="month-label" id="agenda-month-label">—</span>
+        <button onclick="agendaNextMonth()">→</button>
+      </div>
+    </div>
+    <div class="agenda-cards">
+      <div class="agenda-card"><div class="s-label">Renda esperada</div><div class="s-value" id="ag-renda">—</div><div class="s-sub">dividendos × cotas</div></div>
+      <div class="agenda-card"><div class="s-label">Ativos pagando</div><div class="s-value" id="ag-count">—</div><div class="s-sub">no mês selecionado</div></div>
+      <div class="agenda-card"><div class="s-label">Maior pagador</div><div class="s-value" id="ag-top">—</div><div class="s-sub" id="ag-top-sub">valor estimado</div></div>
+      <div class="agenda-card"><div class="s-label">DY médio carteira</div><div class="s-value" id="ag-dy">—</div><div class="s-sub">ponderado por posição</div></div>
+    </div>
+    <div class="ag-section-title" id="ag-confirmed-title" style="display:none">
+      Eventos confirmados <span class="ag-count" id="ag-confirmed-count">0</span>
+    </div>
+    <div class="events-list" id="ag-confirmed-list"></div>
+    <div class="ag-section-title">
+      Estimativas da carteira <span class="ag-count" id="ag-estimated-count">0</span>
+    </div>
+    <div class="events-list" id="ag-estimated-list"></div>
+  </div>
+</div>
+
+<div id="page-ir" class="page">
+  <div class="ir-wrap">
+    <div class="ir-header">
+      <h2>IR — Imposto de Renda</h2>
+      <div class="ir-month-bar">
+        <label>Competência:</label>
+        <select id="ir-month-sel" onchange="renderIR()"></select>
+      </div>
+    </div>
+    <div id="ir-darf-box" class="ir-darf-box" style="display:none">
+      <div class="ir-darf-left">
+        <div class="ir-darf-label">DARF a recolher — <span id="ir-competencia">—</span></div>
+        <div class="ir-darf-amount" id="ir-total-ir">R$ 0,00</div>
+        <div class="ir-darf-detail" id="ir-darf-detail">—</div>
+      </div>
+      <div class="ir-darf-right">Vencimento: último dia útil do mês seguinte<br>Código DARF: 6015</div>
+    </div>
+    <div id="ir-ok-box" class="ir-ok-box" style="display:none">Nenhum imposto a recolher neste mês.</div>
+    <div id="ir-loading-msg" style="padding:40px;text-align:center;color:var(--muted);font-family:var(--mono);font-size:12px">carregando...</div>
+    <div id="ir-main" style="display:none">
+      <div class="ir-grid2">
+        <div class="ir-card">
+          <div class="ir-card-title">FIIs — Resumo do mês</div>
+          <div class="ir-row"><span class="ir-row-label">Vendas brutas</span><span class="ir-row-value" id="ir-fii-vendas">—</span></div>
+          <div class="ir-row"><span class="ir-row-label">Custo (PM × qtd)</span><span class="ir-row-value" id="ir-fii-custo">—</span></div>
+          <div class="ir-row"><span class="ir-row-label">Ganho bruto</span><span class="ir-row-value" id="ir-fii-ganho">—</span></div>
+          <div class="ir-row"><span class="ir-row-label">Prejuízo compensado</span><span class="ir-row-value" id="ir-fii-prej">—</span></div>
+          <div class="ir-row"><span class="ir-row-label">Base de cálculo</span><span class="ir-row-value" id="ir-fii-base">—</span></div>
+          <div class="ir-row"><span class="ir-row-label"><strong>IR (20%)</strong></span><span class="ir-row-value" id="ir-fii-ir">—</span></div>
+        </div>
+        <div class="ir-card">
+          <div class="ir-card-title">Ações — Resumo do mês</div>
+          <div class="ir-row"><span class="ir-row-label">Vendas brutas</span><span class="ir-row-value" id="ir-ac-vendas">—</span></div>
+          <div class="ir-row"><span class="ir-row-label">Custo (PM × qtd)</span><span class="ir-row-value" id="ir-ac-custo">—</span></div>
+          <div class="ir-row"><span class="ir-row-label">Ganho bruto</span><span class="ir-row-value" id="ir-ac-ganho">—</span></div>
+          <div class="ir-row"><span class="ir-row-label">Prejuízo compensado</span><span class="ir-row-value" id="ir-ac-prej">—</span></div>
+          <div class="ir-row"><span class="ir-row-label">Base de cálculo</span><span class="ir-row-value" id="ir-ac-base">—</span></div>
+          <div class="ir-row"><span class="ir-row-label"><strong>IR (15%)</strong></span><span class="ir-row-value" id="ir-ac-ir">—</span></div>
+        </div>
+      </div>
+      <div class="ir-ops-section">
+        <div class="ir-card-title" style="padding:0 0 12px">Operações de venda</div>
+        <table class="ir-ops">
+          <thead><tr>
+            <th>Ticker</th><th>Tipo</th><th>Data</th>
+            <th>Qtd</th><th>Preço venda</th><th>Preço médio</th><th>Resultado</th>
+          </tr></thead>
+          <tbody id="ir-ops-body"></tbody>
+        </table>
+        <div id="ir-ops-empty" class="ir-empty-msg" style="display:none">Nenhuma venda neste mês.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="page-noticias" class="page">
+  <div class="news-wrap">
+    <div class="news-filter-bar">
+      <select id="news-ticker-sel" class="news-select" onchange="renderNoticias()">
+        <option value="">Todos os tickers</option>
+      </select>
+      <select id="news-sent-sel" class="news-select" onchange="renderNoticias()">
+        <option value="">Todos sentimentos</option>
+        <option value="positive">Positivo</option>
+        <option value="negative">Negativo</option>
+        <option value="neutral">Neutro</option>
+      </select>
+    </div>
+    <div id="news-loading" class="news-loading" style="display:none"><div class="spin"></div>carregando...</div>
+    <div id="news-grid" class="news-grid" style="display:none"></div>
+    <div id="news-empty" class="news-empty" style="display:none">
+      <span class="cs-icon">📰</span>
+      <h3>Sem notícias no momento</h3>
+      <p>Nenhuma notícia encontrada para os filtros selecionados. O feed é atualizado automaticamente.</p>
+    </div>
+  </div>
 </div>
 
 <div class="modal-overlay" id="modal">
@@ -668,6 +888,318 @@ async function manualRefresh() {
   btn.disabled = false;
   btn.classList.remove('refreshing');
   label.textContent = origText;
+}
+
+// ── Navegação entre páginas ──
+document.getElementById('nav-tabs').querySelectorAll('.nav-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.getElementById('nav-tabs').querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const page = tab.dataset.page;
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+    if (page === 'agenda') loadAgenda();
+    if (page === 'ir') loadIR();
+    if (page === 'noticias') loadNoticias();
+  });
+});
+
+// ── Agenda ──
+let agendaYear = new Date().getFullYear();
+let agendaMonth = new Date().getMonth() + 1;
+const MONTH_NAMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+function agendaPrevMonth() {
+  agendaMonth--;
+  if (agendaMonth < 1) { agendaMonth = 12; agendaYear--; }
+  loadAgenda();
+}
+function agendaNextMonth() {
+  agendaMonth++;
+  if (agendaMonth > 12) { agendaMonth = 1; agendaYear++; }
+  loadAgenda();
+}
+
+async function loadAgenda() {
+  document.getElementById('agenda-month-label').textContent = MONTH_NAMES[agendaMonth-1] + ' ' + agendaYear;
+  const start = agendaYear+'-'+String(agendaMonth).padStart(2,'0')+'-01';
+  const lastDay = new Date(agendaYear, agendaMonth, 0).getDate();
+  const end = agendaYear+'-'+String(agendaMonth).padStart(2,'0')+'-'+String(lastDay).padStart(2,'0');
+  let confirmed = [];
+  try {
+    const res = await fetch(SUPA_URL+'/rest/v1/dividend_events?event_date=gte.'+start+'&event_date=lte.'+end+'&order=event_date',{headers:H});
+    const data = await res.json();
+    if (Array.isArray(data)) confirmed = data;
+  } catch(e) {}
+  renderAgenda(confirmed);
+}
+
+function renderAgenda(confirmed) {
+  const estimated = [];
+  [...Object.values(fiisCart).map(c=>({...c,_cat:'fii'})),
+   ...Object.values(acoesCart).map(c=>({...c,_cat:'acao'}))]
+  .filter(c => Number(c.quantidade) > 0)
+  .forEach(c => {
+    if (confirmed.some(e => e.ticker === c.ticker)) return;
+    const src = c._cat==='fii' ? fiisData : acoesData;
+    const m = src.find(r => r.ticker === c.ticker);
+    if (!m || !m.ultimo_div || m.ultimo_div <= 0) return;
+    const qty = Number(c.quantidade);
+    estimated.push({ticker:c.ticker, event_type:'ESTIMADO', event_date:null,
+      value:m.ultimo_div, quantidade:qty, income:qty*m.ultimo_div,
+      description: c._cat==='fii'?'Rendimento mensal estimado':'Último dividendo registrado',
+      status:'ESTIMATED', _cat:c._cat});
+  });
+  estimated.sort((a,b) => b.income - a.income);
+
+  const enriched = confirmed.map(e => {
+    const cart = fiisCart[e.ticker] || acoesCart[e.ticker] || {};
+    const qty = Number(cart.quantidade) || 0;
+    return {...e, quantidade:qty, income:qty*(e.value||0), _cat: isFiiTicker(e.ticker)?'fii':'acao'};
+  });
+
+  const all = [...enriched,...estimated];
+  const totalRenda = all.reduce((s,e)=>s+(e.income||0),0);
+  const countPaying = all.filter(e=>e.income>0).length;
+  const top = [...all].sort((a,b)=>(b.income||0)-(a.income||0))[0];
+  let dyN=0,dyD=0;
+  [...fiisData,...acoesData].forEach(r=>{
+    const c=_getCart(r); const q=Number(c.quantidade)||0,pc=Number(r.preco_atual)||0;
+    if(q*pc>0&&r.dy_percent){dyN+=q*pc*r.dy_percent;dyD+=q*pc;}
+  });
+
+  document.getElementById('ag-renda').textContent = fmtR(totalRenda);
+  document.getElementById('ag-count').textContent = countPaying||'—';
+  document.getElementById('ag-top').textContent = top ? top.ticker : '—';
+  document.getElementById('ag-top-sub').textContent = top ? fmtR(top.income) : '—';
+  document.getElementById('ag-dy').textContent = dyD>0 ? fmtN(dyN/dyD)+'%' : '—';
+
+  const confTitle = document.getElementById('ag-confirmed-title');
+  document.getElementById('ag-confirmed-count').textContent = enriched.length;
+  confTitle.style.display = enriched.length ? 'flex' : 'none';
+  document.getElementById('ag-confirmed-list').innerHTML = enriched.map(e=>_renderEventRow(e)).join('');
+
+  document.getElementById('ag-estimated-count').textContent = estimated.length;
+  document.getElementById('ag-estimated-list').innerHTML = estimated.length
+    ? estimated.map(e=>_renderEventRow(e)).join('')
+    : '<div class="ev-empty"><p>Nenhum ativo com dividendos na carteira.<br>Adicione ativos e preencha as cotas para ver estimativas.</p></div>';
+}
+
+function _renderEventRow(e) {
+  const dateStr = e.event_date
+    ? new Date(e.event_date+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})
+    : 'Estimado';
+  const typeClass={'DIVIDENDO':'evt-dividendo','JCP':'evt-jcp','RESULTADO':'evt-resultado','ASSEMBLEIA':'evt-assembleia','ESTIMADO':'evt-estimado'}[e.event_type]||'evt-estimado';
+  const stClass={'SCHEDULED':'evs-scheduled','CONFIRMED':'evs-confirmed','PAID':'evs-paid','ESTIMATED':'evs-estimated'}[e.status]||'evs-estimated';
+  const stLabel={'SCHEDULED':'Agendado','CONFIRMED':'Confirmado','PAID':'Pago','ESTIMATED':'Estimado'}[e.status]||'Estimado';
+  const rowClass='event-row'+({'CONFIRMED':' ev-confirmed','PAID':' ev-paid','ESTIMATED':' ev-derived','SCHEDULED':''}[e.status]||'');
+  const cat = e._cat||(isFiiTicker(e.ticker)?'fii':'acao');
+  return `<div class="${rowClass}">
+    <span class="ev-date">${dateStr}</span>
+    <span class="ev-ticker" onclick="openDetailModal('${e.ticker}','${cat}')">${e.ticker}</span>
+    <span class="ev-type-pill ${typeClass}">${e.event_type}</span>
+    <span class="ev-desc">${e.description||'—'}</span>
+    <span class="ev-value">${e.value?fmtR(e.value):'—'}</span>
+    <span class="ev-qty">${e.quantidade>0?e.quantidade+' cotas':'—'}</span>
+    <span class="ev-income">${e.income>0?fmtR(e.income):'—'}</span>
+    <span class="ev-status-pill ${stClass}">${stLabel}</span>
+  </div>`;
+}
+
+// ── IR Calculator ──
+let irState = null;
+
+async function loadIR() {
+  document.getElementById('ir-loading-msg').style.display = 'block';
+  document.getElementById('ir-main').style.display        = 'none';
+  document.getElementById('ir-darf-box').style.display    = 'none';
+  document.getElementById('ir-ok-box').style.display      = 'none';
+  try {
+    const [fiiNegs, acNegs, losses] = await Promise.all([
+      fetch(SUPA_URL+'/rest/v1/fiis_negociacoes?select=*&order=data_negociacao.asc',{headers:H}).then(r=>r.json()),
+      fetch(SUPA_URL+'/rest/v1/acoes_negociacoes?select=*&order=data_negociacao.asc',{headers:H}).then(r=>r.json()),
+      fetch(SUPA_URL+'/rest/v1/ir_accumulated_losses?select=*',{headers:H}).then(r=>r.json()).catch(()=>[]),
+    ]);
+    const fiiLoss = Number((Array.isArray(losses)?losses:[]).find(r=>r.category==='fii')?.amount ?? 0);
+    const acLoss  = Number((Array.isArray(losses)?losses:[]).find(r=>r.category==='acao')?.amount ?? 0);
+    const fiiOps = _irComputeOps(Array.isArray(fiiNegs) ? fiiNegs : [], 'fii');
+    const acOps  = _irComputeOps(Array.isArray(acNegs)  ? acNegs  : [], 'acao');
+    const months = [...new Set([...fiiOps, ...acOps].map(o=>o.month))].sort().reverse();
+    const sel = document.getElementById('ir-month-sel');
+    sel.innerHTML = months.length
+      ? months.map(m=>`<option value="${m}">${_irFmtYM(m)}</option>`).join('')
+      : '<option value="">— sem vendas —</option>';
+    irState = { fiiOps, acOps, months, fiiLoss, acLoss };
+  } catch(e) { console.error('loadIR:', e); }
+  document.getElementById('ir-loading-msg').style.display = 'none';
+  document.getElementById('ir-main').style.display        = 'block';
+  renderIR();
+}
+
+function _irComputeOps(negs, cat) {
+  const book = {}, ops = [];
+  for (const n of negs) {
+    const t = n.ticker;
+    if (!book[t]) book[t] = { qty:0, totalCost:0 };
+    const qty   = Number(n.quantidade    ?? 0);
+    const preco = Number(n.preco_unitario ?? 0);
+    const tipo  = (n.tipo || '').toLowerCase();
+    if (tipo === 'c' || tipo === 'compra') {
+      book[t].totalCost += qty * preco;
+      book[t].qty       += qty;
+    } else if (tipo === 'v' || tipo === 'venda') {
+      const pm      = book[t].qty > 0 ? book[t].totalCost / book[t].qty : 0;
+      const custo   = pm * qty;
+      const receita = preco * qty;
+      const date    = (n.data_negociacao ?? '').slice(0, 10);
+      const month   = date.slice(0, 7);
+      ops.push({ ticker:t, cat, date, month, qty, preco, pm, custo, receita, resultado: receita - custo });
+      book[t].qty       = Math.max(0, book[t].qty - qty);
+      book[t].totalCost = book[t].qty * pm;
+    }
+  }
+  return ops;
+}
+
+function _irFmtYM(ym) {
+  if (!ym) return '—';
+  const [y, m] = ym.split('-');
+  const mn = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  return `${mn[+m - 1]}/${y}`;
+}
+
+function renderIR() {
+  if (!irState) return;
+  const month = document.getElementById('ir-month-sel').value;
+  const fOps  = irState.fiiOps.filter(o => o.month === month);
+  const aOps  = irState.acOps.filter(o  => o.month === month);
+  const fVendas = fOps.reduce((s,o) => s + o.receita, 0);
+  const fCusto  = fOps.reduce((s,o) => s + o.custo,   0);
+  const fGanho  = fVendas - fCusto;
+  const fBase   = Math.max(0, fGanho - irState.fiiLoss);
+  const fIR     = fBase * 0.20;
+  const aVendas = aOps.reduce((s,o) => s + o.receita, 0);
+  const aCusto  = aOps.reduce((s,o) => s + o.custo,   0);
+  const aGanho  = aVendas - aCusto;
+  const isento  = aVendas <= 20000;
+  const aBase   = isento ? 0 : Math.max(0, aGanho - irState.acLoss);
+  const aIR     = aBase * 0.15;
+  const totalIR = fIR + aIR;
+  const _s = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+  const _c = (id, val) => {
+    const e = document.getElementById(id); if (!e) return;
+    e.textContent = fmtR(val);
+    e.className   = 'ir-row-value ' + (val >= 0 ? 'pl-pos' : 'pl-neg');
+  };
+  _s('ir-fii-vendas', fmtR(fVendas)); _s('ir-fii-custo', fmtR(fCusto)); _c('ir-fii-ganho', fGanho);
+  _s('ir-fii-prej', irState.fiiLoss > 0 ? fmtR(-irState.fiiLoss) : '—');
+  _s('ir-fii-base', fmtR(fBase));
+  _s('ir-fii-ir', fIR > 0.005 ? fmtR(fIR) : '—');
+  if (fIR > 0.005) { const e = document.getElementById('ir-fii-ir'); if(e) e.className='ir-row-value pl-neg'; }
+  _s('ir-ac-vendas', fmtR(aVendas)); _s('ir-ac-custo', fmtR(aCusto)); _c('ir-ac-ganho', aGanho);
+  _s('ir-ac-prej', irState.acLoss > 0 ? fmtR(-irState.acLoss) : '—');
+  _s('ir-ac-base', isento ? `isento (${fmtR(aVendas)} ≤ R$ 20k)` : fmtR(aBase));
+  _s('ir-ac-ir', aIR > 0.005 ? fmtR(aIR) : isento ? 'isento' : '—');
+  if (aIR > 0.005) { const e = document.getElementById('ir-ac-ir'); if(e) e.className='ir-row-value pl-neg'; }
+  if (totalIR > 0.005) {
+    document.getElementById('ir-darf-box').style.display = 'flex';
+    document.getElementById('ir-ok-box').style.display   = 'none';
+    document.getElementById('ir-total-ir').textContent   = fmtR(totalIR);
+    document.getElementById('ir-competencia').textContent = _irFmtYM(month);
+    const parts = [];
+    if (fIR > 0.005) parts.push('FIIs: ' + fmtR(fIR));
+    if (aIR > 0.005) parts.push('Ações: ' + fmtR(aIR));
+    document.getElementById('ir-darf-detail').textContent = parts.join('  +  ');
+  } else {
+    document.getElementById('ir-darf-box').style.display = 'none';
+    document.getElementById('ir-ok-box').style.display   = 'block';
+  }
+  const all = [...fOps, ...aOps].sort((a,b) => a.date.localeCompare(b.date));
+  const tbody = document.getElementById('ir-ops-body');
+  const empty = document.getElementById('ir-ops-empty');
+  if (!all.length) { tbody.innerHTML=''; empty.style.display='block'; }
+  else {
+    empty.style.display = 'none';
+    tbody.innerHTML = all.map(o => {
+      const cls   = o.resultado >= 0 ? 'pl-pos' : 'pl-neg';
+      const badge = o.cat === 'fii' ? '<span class="cat-fii">FII</span>' : '<span class="cat-acao">AÇÃO</span>';
+      const dt = o.date ? o.date.split('-').reverse().join('/') : '—';
+      return `<tr>
+        <td style="font-family:var(--mono);color:var(--blue)">${o.ticker}</td>
+        <td>${badge}</td><td>${dt}</td>
+        <td style="font-family:var(--mono)">${o.qty}</td>
+        <td>${fmtR(o.preco)}</td><td>${fmtR(o.pm)}</td>
+        <td class="${cls}">${fmtR(o.resultado)}</td>
+      </tr>`;
+    }).join('');
+  }
+}
+
+// ── Notícias ──
+let noticiasData = [];
+
+async function loadNoticias() {
+  document.getElementById('news-loading').style.display = 'flex';
+  document.getElementById('news-grid').style.display    = 'none';
+  document.getElementById('news-empty').style.display   = 'none';
+  try {
+    const res = await fetch(SUPA_URL+'/rest/v1/news_items?select=*&order=published_at.desc&limit=100',{headers:H});
+    const data = await res.json();
+    noticiasData = Array.isArray(data) ? data : [];
+  } catch(e) { console.error('loadNoticias:', e); noticiasData = []; }
+  const portfolioTickers = [
+    ...Object.keys(fiisCart).filter(t => Number(fiisCart[t]?.quantidade) > 0),
+    ...Object.keys(acoesCart).filter(t => Number(acoesCart[t]?.quantidade) > 0),
+  ];
+  const newsTickers = [...new Set(noticiasData.flatMap(n => _newsGetTickers(n)))];
+  const sel = document.getElementById('news-ticker-sel');
+  sel.innerHTML = '<option value="">Todos os tickers</option>' +
+    portfolioTickers.filter(t => newsTickers.includes(t)).map(t => `<option value="${t}">${t}</option>`).join('');
+  document.getElementById('news-loading').style.display = 'none';
+  renderNoticias();
+}
+
+function _newsGetTickers(item) {
+  if (Array.isArray(item.tickers)) return item.tickers;
+  if (item.ticker) return [item.ticker];
+  return [];
+}
+
+function renderNoticias() {
+  const tickerFilter = document.getElementById('news-ticker-sel').value;
+  const sentFilter   = document.getElementById('news-sent-sel').value;
+  let items = noticiasData;
+  if (tickerFilter) items = items.filter(n => _newsGetTickers(n).includes(tickerFilter));
+  if (sentFilter)   items = items.filter(n => (n.sentiment||'').toLowerCase() === sentFilter);
+  const grid  = document.getElementById('news-grid');
+  const empty = document.getElementById('news-empty');
+  if (!items.length) { grid.style.display='none'; empty.style.display='block'; return; }
+  empty.style.display = 'none';
+  grid.style.display  = 'grid';
+  const portfolioTickers = [...Object.keys(fiisCart), ...Object.keys(acoesCart)];
+  grid.innerHTML = items.map(n => {
+    const sent      = (n.sentiment||'neutral').toLowerCase();
+    const sentLabel = {positive:'Positivo',negative:'Negativo',neutral:'Neutro'}[sent]??'Neutro';
+    const sentCls   = {positive:'sent-positive',negative:'sent-negative',neutral:'sent-neutral'}[sent]??'sent-neutral';
+    const tickers   = _newsGetTickers(n);
+    const tickerBadges = tickers.filter(t=>portfolioTickers.includes(t))
+      .map(t=>`<span class="${isFiiTicker(t)?'cat-fii':'cat-acao'}">${t}</span>`).join('');
+    const dt = n.published_at ? new Date(n.published_at).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '—';
+    const summary = n.summary ? `<div class="news-summary">${n.summary}</div>` : '';
+    const linkAttr = n.url ? `href="${n.url}" target="_blank" rel="noopener"` : '';
+    return `<div class="news-card">
+      <div class="news-card-top">
+        <a class="news-title" ${linkAttr}>${n.title||'Sem título'}</a>
+        <span class="news-sent ${sentCls}">${sentLabel}</span>
+      </div>
+      ${summary}
+      <div class="news-meta">
+        <span class="news-source">${n.source||'—'}</span>
+        <span class="news-date">${dt}</span>
+        <div class="news-tickers">${tickerBadges}</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 load();
