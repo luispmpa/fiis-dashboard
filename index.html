@@ -564,6 +564,9 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
 const SUPA_URL  = 'https://ityrkysliksvvhpvweft.supabase.co';
 const EDGE_URL  = SUPA_URL + '/functions/v1/refresh-data';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eXJreXNsaWtzdnZocHZ3ZWZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3MzAyMjMsImV4cCI6MjA5MTMwNjIyM30.mWBSzqgB-AYi1XWGmevMmxrm5xUFJ87uefMqwYC184w';
+// Token BraPI — obrigatório para dados históricos dos gráficos.
+// Crie gratuitamente em https://brapi.dev e cole aqui:
+const BRAPI_TOKEN = '';
 const H = {'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json'};
 
 const fmtR = v => v!=null ? 'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
@@ -1315,7 +1318,8 @@ const _fmtDateBR = iso => { if (!iso) return '—'; const [y,m,d] = iso.split('-
 
 async function _fetchBrapiHist(ticker, range) {
   try {
-    const r = await fetch(`https://brapi.dev/api/quote/${ticker}?range=${range}&interval=1d`);
+    const tok = BRAPI_TOKEN ? `&token=${BRAPI_TOKEN}` : '';
+    const r = await fetch(`https://brapi.dev/api/quote/${ticker}?range=${range}&interval=1d${tok}`);
     const d = await r.json();
     return d.results?.[0]?.historicalDataPrice || [];
   } catch(e) { return []; }
@@ -1407,7 +1411,10 @@ async function loadPerformance() {
   if (!allDates.length) {
     loadingEl.style.display = 'none';
     emptyEl.style.display   = 'flex';
-    emptyEl.innerHTML = '<span style="font-size:28px;opacity:.5">⚠️</span><p>Não foi possível carregar dados históricos. Verifique sua conexão.</p>';
+    const noTok = !BRAPI_TOKEN;
+    emptyEl.innerHTML = `<span style="font-size:28px;opacity:.5">${noTok ? '🔑' : '⚠️'}</span><p>${noTok
+      ? 'Configure seu <strong>BRAPI_TOKEN</strong> no topo do arquivo HTML para ativar os gráficos históricos.<br><small style="color:var(--muted)">Crie gratuitamente em brapi.dev</small>'
+      : 'Não foi possível carregar dados históricos. Verifique sua conexão.'}</p>`;
     return;
   }
 
@@ -1607,7 +1614,9 @@ async function renderAssetChart(ticker, cat) {
   const hist     = await _fetchBrapiHist(ticker, range);
 
   if (!hist.length) {
-    innerEl.innerHTML = '<div class="det-chart-loading" style="color:var(--muted)">Histórico de preços indisponível.</div>';
+    innerEl.innerHTML = `<div class="det-chart-loading" style="color:var(--muted)">${
+      BRAPI_TOKEN ? 'Histórico de preços indisponível para este ativo.' : '🔑 Configure o BRAPI_TOKEN no HTML para ver o gráfico.'
+    }</div>`;
     return;
   }
 
