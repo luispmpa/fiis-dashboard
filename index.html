@@ -285,6 +285,121 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
 .det-chart-wrap{background:var(--bg2);border-radius:10px;padding:14px 14px 6px;margin-bottom:20px;}
 .det-chart-inner{position:relative;height:200px;}
 .det-chart-loading{display:flex;align-items:center;justify-content:center;gap:8px;height:200px;color:var(--muted);font-family:var(--mono);font-size:11px;}
+
+/* =========================
+   MOBILE MODE (BIFOCAL)
+========================= */
+@media (max-width: 768px) {
+
+  body {
+    font-size: 13px;
+  }
+
+  header {
+    padding: 8px 12px;
+    height: auto;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  #last-update {
+    display: none;
+  }
+
+  .nav-tabs {
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .nav-tab {
+    flex: 0 0 auto;
+    padding: 6px 12px;
+  }
+
+  .summary {
+    flex-direction: column;
+  }
+
+  .s-card {
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+    padding: 12px 14px;
+  }
+
+  .toolbar {
+    flex-wrap: wrap;
+    padding: 10px 12px;
+  }
+
+  .search-wrap {
+    max-width: 100%;
+    order: 3;
+    width: 100%;
+  }
+
+  .agenda-wrap,
+  .news-wrap,
+  .perf-wrap,
+  .ir-wrap {
+    padding: 14px;
+  }
+
+  /* Tabela → Cards */
+  table thead {
+    display: none;
+  }
+
+  table, tbody, tr, td {
+    display: block;
+    width: 100%;
+  }
+
+  tbody tr {
+    background: var(--bg1);
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 10px;
+    border: 1px solid var(--line);
+  }
+
+  td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    text-align: left !important;
+    border: none;
+  }
+
+  td::before {
+    content: attr(data-label);
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  input.cell-input {
+    width: 70px;
+  }
+
+  .btn-add {
+    padding: 6px 12px;
+  }
+
+  .perf-chart-inner {
+    height: 220px;
+  }
+
+  .modal {
+    width: 95vw;
+    padding: 20px;
+  }
+
+  .modal-detail {
+    width: 95vw !important;
+  }
+}
 </style>
 </head>
 <body>
