@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+<link rel="manifest" href="manifest.json">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Finance Dashboard — FIIs & Ações</title>
@@ -1745,6 +1746,24 @@ async function renderAssetChart(ticker, cat) {
 load();
 // recarrega dados do Supabase a cada 60 minutos
 setInterval(() => load(), 60 * 60 * 1000);
+</script>
+<script>
+// Auto data-label para tabela (mobile)
+document.querySelectorAll("table").forEach(table => {
+  const headers = Array.from(table.querySelectorAll("thead th"))
+    .map(th => th.innerText);
+
+  table.querySelectorAll("tbody tr").forEach(tr => {
+    tr.querySelectorAll("td").forEach((td, i) => {
+      td.setAttribute("data-label", headers[i] || "");
+    });
+  });
+});
+
+// Service Worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js');
+}
 </script>
 </body>
 </html>
