@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Finance Dashboard — FIIs & Ações</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -250,6 +251,40 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
 .news-empty h3 { font-size:15px; color:var(--muted2); margin-bottom:8px; }
 .news-empty p { font-size:13px; line-height:1.6; max-width:360px; margin:0 auto; }
 .news-loading { padding:60px; text-align:center; color:var(--muted); font-family:var(--mono); font-size:12px; display:flex; align-items:center; justify-content:center; gap:10px; }
+
+/* === Performance / Charts === */
+.perf-wrap{padding:24px 32px;}
+.perf-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;}
+.perf-header h2{font-size:16px;font-weight:600;}
+.period-tabs{display:flex;gap:2px;background:var(--bg2);border-radius:8px;padding:3px;}
+.period-tab{font-size:11px;font-weight:600;font-family:var(--mono);padding:5px 14px;border-radius:6px;border:none;background:transparent;color:var(--muted2);cursor:pointer;transition:all .15s;letter-spacing:.04em;}
+.period-tab.active{background:var(--bg3);color:var(--text);}
+.period-tab:hover:not(.active){color:var(--text);}
+.perf-cards{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;}
+.perf-card{flex:1;min-width:140px;background:var(--bg1);border:1px solid var(--line);border-radius:10px;padding:14px 18px;}
+.perf-card .s-label{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:5px;}
+.perf-card .s-value{font-family:var(--mono);font-size:18px;font-weight:500;}
+.perf-card .s-sub{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:3px;}
+.perf-series-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;}
+.perf-toggles{display:flex;gap:6px;flex-wrap:wrap;}
+.perf-toggle{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;padding:5px 12px;border-radius:6px;border:1px solid var(--line);transition:all .15s;user-select:none;font-family:var(--sans);}
+.perf-toggle.active{color:var(--text);border-color:var(--line2);}
+.perf-toggle:hover{border-color:var(--line2);}
+.tog-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.perf-info-note{font-size:10px;color:var(--muted);font-family:var(--mono);}
+.perf-chart-wrap{background:var(--bg1);border:1px solid var(--line);border-radius:12px;padding:20px;position:relative;}
+.perf-chart-inner{position:relative;height:340px;}
+.perf-loading-state{display:flex;align-items:center;justify-content:center;gap:10px;height:340px;color:var(--muted);font-family:var(--mono);font-size:12px;}
+.perf-empty-state{display:flex;align-items:center;justify-content:center;height:240px;color:var(--muted);font-size:13px;text-align:center;flex-direction:column;gap:12px;}
+/* Asset Chart in Modal */
+.modal-detail{width:740px!important;}
+.det-period-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;}
+.det-chart-stats{display:flex;gap:20px;font-family:var(--mono);font-size:12px;flex-wrap:wrap;}
+.det-chart-stat{display:flex;flex-direction:column;gap:2px;}
+.det-chart-stat-lbl{font-size:10px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;}
+.det-chart-wrap{background:var(--bg2);border-radius:10px;padding:14px 14px 6px;margin-bottom:20px;}
+.det-chart-inner{position:relative;height:200px;}
+.det-chart-loading{display:flex;align-items:center;justify-content:center;gap:8px;height:200px;color:var(--muted);font-family:var(--mono);font-size:11px;}
 </style>
 </head>
 <body>
@@ -259,6 +294,7 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
   <nav class="nav-tabs" id="nav-tabs">
     <button class="nav-tab active" data-page="carteira">Carteira</button>
     <button class="nav-tab" data-page="agenda">Agenda</button>
+    <button class="nav-tab" data-page="performance">Performance</button>
     <button class="nav-tab" data-page="ir">IR</button>
     <button class="nav-tab" data-page="noticias">Notícias</button>
   </nav>
@@ -409,6 +445,48 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
   </div>
 </div>
 
+<div id="page-performance" class="page">
+  <div class="perf-wrap">
+    <div class="perf-header">
+      <h2>Rentabilidade da Carteira</h2>
+      <div class="period-tabs" id="perf-periods">
+        <button class="period-tab" data-period="1M">1M</button>
+        <button class="period-tab" data-period="3M">3M</button>
+        <button class="period-tab active" data-period="6M">6M</button>
+        <button class="period-tab" data-period="1Y">1Y</button>
+        <button class="period-tab" data-period="MAX">MAX</button>
+      </div>
+    </div>
+    <div class="perf-cards">
+      <div class="perf-card"><div class="s-label">Retorno bruto</div><div class="s-value" id="pc-bruto">—</div><div class="s-sub" id="pc-bruto-sub">no período</div></div>
+      <div class="perf-card"><div class="s-label">Com dividendos</div><div class="s-value" id="pc-div">—</div><div class="s-sub" id="pc-div-sub">acumulado no período</div></div>
+      <div class="perf-card"><div class="s-label">vs CDI</div><div class="s-value" id="pc-cdi">—</div><div class="s-sub" id="pc-cdi-sub">alfa vs CDI</div></div>
+      <div class="perf-card"><div class="s-label">vs IBOV</div><div class="s-value" id="pc-bova">—</div><div class="s-sub" id="pc-bova-sub">alfa vs BOVA11</div></div>
+      <div class="perf-card"><div class="s-label">Patrimônio</div><div class="s-value" id="pc-pat">—</div><div class="s-sub">valor atual carteira</div></div>
+    </div>
+    <div class="perf-series-row">
+      <div class="perf-toggles">
+        <span class="perf-toggle" id="tog-bruto" onclick="togglePerf('bruto')"><span class="tog-dot" style="background:rgba(61,255,160,.5)"></span>Bruto</span>
+        <span class="perf-toggle active" id="tog-div" onclick="togglePerf('div')"><span class="tog-dot" style="background:#3dffa0"></span>Com dividendos</span>
+        <span class="perf-toggle active" id="tog-cdi" onclick="togglePerf('cdi')"><span class="tog-dot" style="background:#ffb347"></span>CDI</span>
+        <span class="perf-toggle active" id="tog-bova" onclick="togglePerf('bova')"><span class="tog-dot" style="background:#4d9fff"></span>IBOV</span>
+        <span class="perf-toggle" id="tog-xfix" onclick="togglePerf('xfix')"><span class="tog-dot" style="background:#c9a8ff"></span>IFIX</span>
+      </div>
+      <span class="perf-info-note">posições atuais × preço histórico</span>
+    </div>
+    <div class="perf-chart-wrap">
+      <div id="perf-loading" class="perf-loading-state"><div class="spin"></div>carregando histórico...</div>
+      <div id="perf-empty" class="perf-empty-state" style="display:none">
+        <span style="font-size:28px;opacity:.5">📊</span>
+        <p>Adicione ativos à carteira e preencha as cotas para ver a rentabilidade.</p>
+      </div>
+      <div class="perf-chart-inner" id="perf-chart-inner" style="display:none">
+        <canvas id="perf-chart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal">
   <div class="modal">
     <h2>Adicionar ativo</h2>
@@ -450,6 +528,20 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
       <button onclick="closeDetailModal()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;line-height:1">✕</button>
     </div>
     <div class="detail-grid" id="det-grid"></div>
+    <div class="det-period-bar">
+      <div class="period-tabs" id="det-periods">
+        <button class="period-tab active" data-ap="1M">1M</button>
+        <button class="period-tab" data-ap="3M">3M</button>
+        <button class="period-tab" data-ap="6M">6M</button>
+        <button class="period-tab" data-ap="1Y">1Y</button>
+      </div>
+      <div class="det-chart-stats" id="det-chart-stats"></div>
+    </div>
+    <div class="det-chart-wrap">
+      <div class="det-chart-inner" id="det-chart-inner">
+        <div class="det-chart-loading"><div class="spin"></div>carregando...</div>
+      </div>
+    </div>
     <div class="section-title">Histórico de negociações</div>
     <div id="det-neg-wrap">
       <div style="color:var(--muted);font-family:var(--mono);font-size:12px;padding:16px 0">carregando...</div>
@@ -701,6 +793,7 @@ async function openDetailModal(ticker, cat) {
   document.getElementById('det-grid').innerHTML=cards.map(([label,val,cls])=>`
     <div class="detail-card"><div class="s-label">${label}</div><div class="s-value ${cls}">${val}</div></div>`).join('');
   document.getElementById('modal-detail').classList.add('open');
+  renderAssetChart(ticker, cat);
   document.getElementById('det-neg-wrap').innerHTML='<div style="color:var(--muted);font-family:var(--mono);font-size:12px;padding:16px 0">carregando...</div>';
   try {
     const negTable = cat==='acao' ? 'acoes_negociacoes' : 'fiis_negociacoes';
@@ -733,7 +826,11 @@ async function openDetailModal(ticker, cat) {
     document.getElementById('det-neg-wrap').innerHTML='<div style="color:var(--red);font-size:12px">Erro ao carregar histórico.</div>';
   }
 }
-function closeDetailModal() { document.getElementById('modal-detail').classList.remove('open'); }
+function closeDetailModal() {
+  document.getElementById('modal-detail').classList.remove('open');
+  if (assetChartInst) { assetChartInst.destroy(); assetChartInst = null; }
+  assetTickerCurr = null;
+}
 document.getElementById('modal-detail').addEventListener('click',e=>{if(e.target===document.getElementById('modal-detail'))closeDetailModal();});
 
 let delTicker=null, delCat=null;
@@ -899,6 +996,7 @@ document.getElementById('nav-tabs').querySelectorAll('.nav-tab').forEach(tab => 
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-' + page).classList.add('active');
     if (page === 'agenda') loadAgenda();
+    if (page === 'performance') loadPerformance();
     if (page === 'ir') loadIR();
     if (page === 'noticias') loadNoticias();
   });
@@ -1200,6 +1298,439 @@ function renderNoticias() {
       </div>
     </div>`;
   }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CHARTS — Performance da Carteira & Gráfico de Ativos
+// ═══════════════════════════════════════════════════════════════════
+
+const _fmtRet = (v, sign=true) => {
+  if (v == null || isNaN(v)) return '—';
+  const s = sign && v >= 0 ? '+' : '';
+  return s + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}) + '%';
+};
+
+const _isoFromTs = ts => new Date(ts * 1000).toISOString().slice(0, 10);
+const _fmtDateBR = iso => { if (!iso) return '—'; const [y,m,d] = iso.split('-'); return `${d}/${m}/${y}`; };
+
+async function _fetchBrapiHist(ticker, range) {
+  try {
+    const r = await fetch(`https://brapi.dev/api/quote/${ticker}?range=${range}&interval=1d`);
+    const d = await r.json();
+    return d.results?.[0]?.historicalDataPrice || [];
+  } catch(e) { return []; }
+}
+
+function _buildPriceMap(hist) {
+  const m = {};
+  for (const p of hist) {
+    const d = _isoFromTs(p.date);
+    const v = Number(p.close || p.adjustedClose || p.open || 0);
+    if (v > 0) m[d] = v;
+  }
+  return m;
+}
+
+function _forwardFill(dates, priceMap) {
+  const f = {}; let last = null;
+  for (const d of dates) {
+    if (priceMap[d] != null) last = priceMap[d];
+    if (last != null) f[d] = last;
+  }
+  return f;
+}
+
+// ─── Performance da Carteira ───────────────────────────────────────────────────
+
+let perfPeriod = '6M';
+let perfChartInst = null;
+let perfVisible = { bruto: false, div: true, cdi: true, bova: true, xfix: false };
+
+document.getElementById('perf-periods').querySelectorAll('.period-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.getElementById('perf-periods').querySelectorAll('.period-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    perfPeriod = btn.dataset.period;
+    loadPerformance();
+  });
+});
+
+function togglePerf(key) {
+  perfVisible[key] = !perfVisible[key];
+  const el = document.getElementById('tog-' + key);
+  if (el) el.classList.toggle('active', perfVisible[key]);
+  if (perfChartInst) {
+    const idx = { bruto: 0, div: 1, cdi: 2, bova: 3, xfix: 4 }[key];
+    if (idx != null && perfChartInst.data.datasets[idx]) {
+      perfChartInst.data.datasets[idx].hidden = !perfVisible[key];
+      perfChartInst.update();
+    }
+  }
+}
+
+async function loadPerformance() {
+  const loadingEl    = document.getElementById('perf-loading');
+  const emptyEl      = document.getElementById('perf-empty');
+  const chartInnerEl = document.getElementById('perf-chart-inner');
+
+  loadingEl.style.display    = 'flex';
+  emptyEl.style.display      = 'none';
+  chartInnerEl.style.display = 'none';
+  if (perfChartInst) { perfChartInst.destroy(); perfChartInst = null; }
+
+  const holdings = [
+    ...Object.entries(fiisCart).filter(([,c]) => Number(c.quantidade) > 0).map(([t,c]) => ({ticker:t, qty:Number(c.quantidade)})),
+    ...Object.entries(acoesCart).filter(([,c]) => Number(c.quantidade) > 0).map(([t,c]) => ({ticker:t, qty:Number(c.quantidade)}))
+  ];
+
+  if (!holdings.length) {
+    loadingEl.style.display = 'none';
+    emptyEl.style.display   = 'flex';
+    return;
+  }
+
+  const rangeMap = { '1M':'1mo', '3M':'3mo', '6M':'6mo', '1Y':'1y', 'MAX':'5y' };
+  const brapiRange = rangeMap[perfPeriod] || '6mo';
+
+  const allTickers = [...new Set(holdings.map(h => h.ticker))];
+  const histories  = {};
+  await Promise.all([...allTickers, 'BOVA11', 'XFIX11'].map(async ticker => {
+    const hist = await _fetchBrapiHist(ticker, brapiRange);
+    if (hist.length) histories[ticker] = hist;
+  }));
+
+  // Build unified date list from portfolio assets
+  const dateSet = new Set();
+  allTickers.forEach(t => (histories[t] || []).forEach(p => dateSet.add(_isoFromTs(p.date))));
+  const allDates = [...dateSet].sort();
+
+  if (!allDates.length) {
+    loadingEl.style.display = 'none';
+    emptyEl.style.display   = 'flex';
+    emptyEl.innerHTML = '<span style="font-size:28px;opacity:.5">⚠️</span><p>Não foi possível carregar dados históricos. Verifique sua conexão.</p>';
+    return;
+  }
+
+  // Price maps with forward fill
+  const priceMaps = {};
+  for (const ticker in histories) {
+    priceMaps[ticker] = _forwardFill(allDates, _buildPriceMap(histories[ticker]));
+  }
+
+  // Portfolio daily value series
+  const portfolioSeries = allDates.map(date => {
+    let value = 0;
+    for (const h of holdings) {
+      const price = priceMaps[h.ticker]?.[date];
+      if (price) value += h.qty * price;
+    }
+    return { date, value };
+  }).filter(p => p.value > 0);
+
+  if (!portfolioSeries.length) {
+    loadingEl.style.display = 'none';
+    emptyEl.style.display   = 'flex';
+    return;
+  }
+
+  const base       = portfolioSeries[0].value;
+  const finalDates = portfolioSeries.map(p => p.date);
+  const retBruto   = portfolioSeries.map(p => +((p.value - base) / base * 100).toFixed(4));
+
+  // Fetch dividends for "com dividendos" series
+  let dividends = [];
+  try {
+    const startDate = finalDates[0], endDate = finalDates[finalDates.length - 1];
+    const res = await fetch(
+      SUPA_URL + '/rest/v1/dividend_events?event_date=gte.' + startDate +
+      '&event_date=lte.' + endDate + '&status=in.(PAID,CONFIRMED)&select=ticker,event_date,value',
+      { headers: H }
+    );
+    const data = await res.json();
+    if (Array.isArray(data)) {
+      const portfolioSet = new Set(holdings.map(h => h.ticker));
+      dividends = data.filter(d => portfolioSet.has(d.ticker));
+    }
+  } catch(e) {}
+
+  const retDiv = portfolioSeries.map(p => {
+    let cumDiv = 0;
+    for (const div of dividends) {
+      if (div.event_date && div.event_date <= p.date) {
+        const h = holdings.find(x => x.ticker === div.ticker);
+        if (h) cumDiv += h.qty * (Number(div.value) || 0);
+      }
+    }
+    return +((p.value + cumDiv - base) / base * 100).toFixed(4);
+  });
+
+  // CDI sintético (~13.75% a.a.)
+  const CDI_ANNUAL = 0.1375;
+  const retCdi = finalDates.map((_, i) => +(((Math.pow(1 + CDI_ANNUAL, i / 252)) - 1) * 100).toFixed(4));
+
+  // Benchmark series
+  function _benchSeries(ticker) {
+    const pm = priceMaps[ticker];
+    if (!pm) return null;
+    const fp = pm[finalDates[0]];
+    if (!fp) return null;
+    return finalDates.map(d => {
+      const v = pm[d];
+      return v != null ? +((v - fp) / fp * 100).toFixed(4) : null;
+    });
+  }
+  const retBova = _benchSeries('BOVA11');
+  const retXfix = _benchSeries('XFIX11');
+
+  // Summary cards
+  const lastBruto = retBruto[retBruto.length - 1] ?? 0;
+  const lastDiv   = retDiv[retDiv.length - 1] ?? 0;
+  const lastCdi   = retCdi[retCdi.length - 1] ?? 0;
+  const lastBova  = retBova?.[retBova.length - 1] ?? null;
+  const patValue  = portfolioSeries[portfolioSeries.length - 1]?.value ?? 0;
+
+  function _setCard(id, val, subId, subVal) {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = _fmtRet(val); el.className = 's-value ' + (val >= 0 ? 'up' : 'down'); }
+    if (subId) { const s = document.getElementById(subId); if (s) s.textContent = subVal || ''; }
+  }
+
+  _setCard('pc-bruto', lastBruto, 'pc-bruto-sub', 'valorização das cotas');
+  _setCard('pc-div',   lastDiv,   'pc-div-sub',   'inclui dividendos recebidos');
+  _setCard('pc-cdi',   lastBruto - lastCdi, 'pc-cdi-sub', 'CDI acum.: ' + _fmtRet(lastCdi, false));
+  if (lastBova != null) {
+    _setCard('pc-bova', lastBruto - lastBova, 'pc-bova-sub', 'IBOV acum.: ' + _fmtRet(lastBova, false));
+  } else {
+    const el = document.getElementById('pc-bova'); if (el) { el.textContent = '—'; el.className = 's-value'; }
+    const s  = document.getElementById('pc-bova-sub'); if (s) s.textContent = 'dados indisponíveis';
+  }
+  const pelEl = document.getElementById('pc-pat');
+  if (pelEl) pelEl.textContent = fmtR(patValue);
+
+  // Render Chart.js
+  const ctx = document.getElementById('perf-chart').getContext('2d');
+  const labels = finalDates.map(d => _fmtDateBR(d));
+
+  const datasets = [
+    {
+      label: 'Carteira (bruto)',
+      data: retBruto, borderColor: 'rgba(61,255,160,.45)', borderWidth: 1.5,
+      borderDash: [5, 4], pointRadius: 0, tension: 0.3, fill: false,
+      hidden: !perfVisible.bruto,
+    },
+    {
+      label: 'Carteira c/ dividendos',
+      data: retDiv, borderColor: '#3dffa0', borderWidth: 2,
+      pointRadius: 0, tension: 0.3,
+      fill: { target: 'origin', above: 'rgba(61,255,160,.07)', below: 'rgba(255,95,95,.07)' },
+      hidden: !perfVisible.div,
+    },
+    {
+      label: 'CDI (~13.75% a.a.)',
+      data: retCdi, borderColor: '#ffb347', borderWidth: 1.5,
+      borderDash: [6, 4], pointRadius: 0, tension: 0, fill: false,
+      hidden: !perfVisible.cdi,
+    },
+    {
+      label: 'IBOV (BOVA11)',
+      data: retBova || [], borderColor: '#4d9fff', borderWidth: 1.5,
+      pointRadius: 0, tension: 0.3, fill: false,
+      hidden: !perfVisible.bova || !retBova,
+    },
+    {
+      label: 'IFIX (XFIX11)',
+      data: retXfix || [], borderColor: '#c9a8ff', borderWidth: 1.5,
+      pointRadius: 0, tension: 0.3, fill: false,
+      hidden: !perfVisible.xfix || !retXfix,
+    },
+  ];
+
+  perfChartInst = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1c2030', borderColor: 'rgba(255,255,255,.1)', borderWidth: 1,
+          titleColor: '#8890a8', bodyColor: '#dde1ec', padding: 10,
+          callbacks: { label: c => `${c.dataset.label}: ${_fmtRet(c.raw, true)}` }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,.04)' },
+          ticks: { color: '#5a6078', font: { family: 'IBM Plex Mono', size: 10 }, maxTicksLimit: 8, maxRotation: 0 }
+        },
+        y: {
+          grid: { color: 'rgba(255,255,255,.04)' },
+          ticks: { color: '#5a6078', font: { family: 'IBM Plex Mono', size: 10 }, callback: v => _fmtRet(v, true) }
+        }
+      }
+    }
+  });
+
+  loadingEl.style.display    = 'none';
+  chartInnerEl.style.display = 'block';
+}
+
+// ─── Gráfico de Ativo Individual ───────────────────────────────────────────────
+
+let assetChartPeriod = '3M';
+let assetChartInst   = null;
+let assetTickerCurr  = null;
+let assetCatCurr     = null;
+
+document.getElementById('det-periods').querySelectorAll('.period-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.getElementById('det-periods').querySelectorAll('.period-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    assetChartPeriod = btn.dataset.ap;
+    if (assetTickerCurr) renderAssetChart(assetTickerCurr, assetCatCurr);
+  });
+});
+
+async function renderAssetChart(ticker, cat) {
+  assetTickerCurr = ticker;
+  assetCatCurr    = cat;
+
+  const innerEl  = document.getElementById('det-chart-inner');
+  const statsEl  = document.getElementById('det-chart-stats');
+  innerEl.innerHTML = '<div class="det-chart-loading"><div class="spin"></div>carregando...</div>';
+  statsEl.innerHTML = '';
+  if (assetChartInst) { assetChartInst.destroy(); assetChartInst = null; }
+
+  const rangeMap = { '1M':'1mo', '3M':'3mo', '6M':'6mo', '1Y':'1y' };
+  const range    = rangeMap[assetChartPeriod] || '3mo';
+  const hist     = await _fetchBrapiHist(ticker, range);
+
+  if (!hist.length) {
+    innerEl.innerHTML = '<div class="det-chart-loading" style="color:var(--muted)">Histórico de preços indisponível.</div>';
+    return;
+  }
+
+  // Fetch dividends for this ticker in the period
+  let dividends = [];
+  try {
+    const sd = _isoFromTs(hist[0].date), ed = _isoFromTs(hist[hist.length - 1].date);
+    const res = await fetch(
+      SUPA_URL + '/rest/v1/dividend_events?ticker=eq.' + ticker +
+      '&event_date=gte.' + sd + '&event_date=lte.' + ed +
+      '&select=event_date,value&order=event_date',
+      { headers: H }
+    );
+    const data = await res.json();
+    if (Array.isArray(data)) dividends = data;
+  } catch(e) {}
+
+  const dates   = hist.map(p => _isoFromTs(p.date));
+  const prices  = hist.map(p => Number(p.close || p.adjustedClose || p.open || 0));
+  const base    = prices[0] || 1;
+  const returns = prices.map(p => +((p - base) / base * 100).toFixed(4));
+
+  const lastPrice = prices[prices.length - 1];
+  const lastRet   = returns[returns.length - 1];
+  const maxP      = Math.max(...prices);
+  const minP      = Math.min(...prices);
+
+  // Portfolio context
+  const cartEntry = cat === 'fii' ? fiisCart[ticker] : acoesCart[ticker];
+  const qty = Number(cartEntry?.quantidade) || 0;
+  const pm  = Number(cartEntry?.preco_medio) || 0;
+  const plPct = pm > 0 ? ((lastPrice - pm) / pm * 100) : null;
+
+  // Stats bar
+  statsEl.innerHTML = `
+    <div class="det-chart-stat"><span class="det-chart-stat-lbl">Período</span><span class="${lastRet >= 0 ? 'up' : 'down'}">${_fmtRet(lastRet)}</span></div>
+    ${plPct != null ? `<div class="det-chart-stat"><span class="det-chart-stat-lbl">vs P.M.</span><span class="${plPct >= 0 ? 'up' : 'down'}">${_fmtRet(plPct)}</span></div>` : ''}
+    <div class="det-chart-stat"><span class="det-chart-stat-lbl">Máx</span><span>${fmtR(maxP)}</span></div>
+    <div class="det-chart-stat"><span class="det-chart-stat-lbl">Mín</span><span>${fmtR(minP)}</span></div>
+    ${dividends.length ? `<div class="det-chart-stat"><span class="det-chart-stat-lbl">Dividendos</span><span style="color:var(--accent)">${dividends.length}x no período</span></div>` : ''}
+  `;
+
+  // Create canvas
+  innerEl.innerHTML = '<canvas id="det-chart-canvas" style="max-height:200px"></canvas>';
+  const ctx = document.getElementById('det-chart-canvas').getContext('2d');
+
+  const divDates = dividends.map(d => d.event_date);
+  const labels   = dates.map(d => _fmtDateBR(d));
+
+  // Custom plugin: vertical lines for dividends
+  const divPlugin = {
+    id: 'divLines',
+    afterDatasetsDraw(chart) {
+      const { ctx: c, chartArea: { top, bottom }, scales: { x } } = chart;
+      for (const date of divDates) {
+        const idx = dates.indexOf(date);
+        if (idx < 0) continue;
+        const xPos = x.getPixelForValue(idx);
+        c.save();
+        c.setLineDash([3, 3]);
+        c.strokeStyle = 'rgba(61,255,160,.55)';
+        c.lineWidth = 1;
+        c.beginPath(); c.moveTo(xPos, top); c.lineTo(xPos, bottom); c.stroke();
+        // Small diamond at top
+        c.fillStyle = 'rgba(61,255,160,.8)';
+        c.beginPath(); c.arc(xPos, top + 6, 3, 0, Math.PI * 2); c.fill();
+        c.restore();
+      }
+    }
+  };
+
+  const color = lastRet >= 0 ? '#3dffa0' : '#ff5f5f';
+  const fill  = lastRet >= 0 ? 'rgba(61,255,160,.08)' : 'rgba(255,95,95,.08)';
+
+  const datasets = [{
+    label: ticker,
+    data: returns, borderColor: color, borderWidth: 2,
+    pointRadius: 0, tension: 0.3,
+    fill: { target: 'origin', above: fill, below: 'rgba(255,95,95,.08)' },
+  }];
+
+  // Preço médio as horizontal line
+  if (pm > 0) {
+    const pmRet = +((pm - base) / base * 100).toFixed(4);
+    datasets.push({
+      label: 'Preço médio',
+      data: dates.map(() => pmRet),
+      borderColor: 'rgba(255,179,71,.6)', borderWidth: 1,
+      borderDash: [5, 4], pointRadius: 0, tension: 0, fill: false,
+    });
+  }
+
+  assetChartInst = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    plugins: [divPlugin],
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1c2030', borderColor: 'rgba(255,255,255,.1)', borderWidth: 1,
+          titleColor: '#8890a8', bodyColor: '#dde1ec', padding: 8,
+          callbacks: {
+            label: ctx => ctx.datasetIndex === 0
+              ? `${ticker}: ${_fmtRet(ctx.raw)}`
+              : `P.M.: ${_fmtRet(ctx.raw)}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,.03)' },
+          ticks: { color: '#5a6078', font: { family: 'IBM Plex Mono', size: 10 }, maxTicksLimit: 6, maxRotation: 0 }
+        },
+        y: {
+          grid: { color: 'rgba(255,255,255,.03)' },
+          ticks: { color: '#5a6078', font: { family: 'IBM Plex Mono', size: 10 }, callback: v => _fmtRet(v, true) }
+        }
+      }
+    }
+  });
 }
 
 load();
