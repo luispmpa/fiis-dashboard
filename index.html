@@ -349,42 +349,49 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
   }
 
   /* Tabela → Cards */
-  table thead {
-    display: none;
-  }
+  table thead { display: none; }
 
-  table, tbody, tr, td {
-    display: block;
-    width: 100%;
-  }
+  table, tbody { display: block; width: 100%; }
 
   tbody tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "ticker  ticker"
+      "nome    nome"
+      "seg     seg"
+      "preco   vd"
+      "div     dy"
+      "pos     pl"
+      "qty     pm"
+      "btns    btns";
     background: var(--bg1);
     border-radius: 10px;
-    padding: 12px;
+    padding: 12px 14px 8px;
     margin-bottom: 10px;
     border: 1px solid var(--line);
+    gap: 0;
   }
 
-  td {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 6px 0;
-    text-align: left !important;
-    border: none;
-  }
+  td { display: flex; flex-direction: column; padding: 5px 0; border: none; text-align: left !important; }
+  td[data-label]::before { content: attr(data-label); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 2px; }
 
-  td::before {
-    content: attr(data-label);
-    font-size: 10px;
-    color: var(--muted);
-    text-transform: uppercase;
-  }
+  .td-ticker { grid-area: ticker; flex-direction: row; align-items: center; padding-bottom: 8px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+  .td-ticker .ticker-label { font-size: 15px; }
+  .td-nome   { grid-area: nome; font-family: var(--sans); font-size: 12px; color: var(--muted2); padding-top: 2px; padding-bottom: 6px; }
+  .td-seg    { grid-area: seg; padding-bottom: 8px; }
+  .td-preco  { grid-area: preco; }
+  .td-vd     { grid-area: vd; }
+  .td-div    { grid-area: div; }
+  .td-dy     { grid-area: dy; }
+  .td-pos    { grid-area: pos; }
+  .td-pl     { grid-area: pl; }
+  .td-qty    { grid-area: qty; }
+  .td-pm     { grid-area: pm; }
+  .td-btns   { grid-area: btns; flex-direction: row; justify-content: flex-end; gap: 8px; padding-top: 8px; border-top: 1px solid var(--line); margin-top: 4px; }
+  .td-vs, .td-sinal, .td-cat { display: none !important; }
 
-  input.cell-input {
-    width: 70px;
-  }
+  input.cell-input { width: 100%; box-sizing: border-box; }
 
   .btn-add {
     padding: 6px 12px;
@@ -838,23 +845,23 @@ function render() {
     if (pm>0&&pc>0){const d=((pc-pm)/pm)*100;sinal=d<-3?'<span class="signal sig-buy">↓ COMPRAR</span>':d>5?'<span class="signal sig-sell">↑ VENDER</span>':'<span class="signal sig-hold">→ MANTER</span>';}
     const vdC=r.var_dia>=0?'up':'down', vsC=r.var_semanal>=0?'up':'down', plC=pl!=null?(pl>=0?'pl-pos':'pl-neg'):'';
     const catBadge = r._cat==='fii' ? '<span class="cat-fii">FII</span>' : '<span class="cat-acao">AÇÃO</span>';
-    const catCol = showCat ? `<td>${catBadge}</td>` : '';
+    const catCol = showCat ? `<td class="td-cat">${catBadge}</td>` : '';
     return `<tr>
-      <td><span class="ticker-label" onclick="openDetailModal('${r.ticker}','${r._cat}')">${r.ticker}</span></td>
+      <td class="td-ticker"><span class="ticker-label" onclick="openDetailModal('${r.ticker}','${r._cat}')">${r.ticker}</span></td>
       ${catCol}
-      <td>${r.nome||'—'}</td>
-      <td><span class="seg-pill ${segClass(r._seg)}">${r._seg||'—'}</span></td>
-      <td>${fmtR(r.preco_atual)}</td>
-      <td class="${vdC}">${r.var_dia!=null?fmtP(r.var_dia):'—'}</td>
-      <td class="${vsC}">${r.var_semanal!=null?fmtP(r.var_semanal):'—'}</td>
-      <td>${div!=null?fmtR(div):'—'}</td>
-      <td>${r.dy_percent!=null?fmtN(r.dy_percent)+'%':'—'}</td>
-      <td><input class="cell-input" type="number" min="0" step="1" value="${qty||''}" placeholder="0" data-ticker="${r.ticker}" data-cat="${r._cat}" data-field="qty"></td>
-      <td><input class="cell-input" type="number" min="0" step="0.01" value="${pm||''}" placeholder="0,00" data-ticker="${r.ticker}" data-cat="${r._cat}" data-field="pm"></td>
-      <td>${qty>0?fmtR(pos):'—'}</td>
-      <td class="${plC}">${pl!=null?fmtR(pl)+(plPct!=null?' ('+fmtP(plPct)+')':''):'—'}</td>
-      <td>${sinal}</td>
-      <td style="display:flex;gap:6px;align-items:center">
+      <td class="td-nome">${r.nome||'—'}</td>
+      <td class="td-seg"><span class="seg-pill ${segClass(r._seg)}">${r._seg||'—'}</span></td>
+      <td class="td-preco" data-label="Preço">${fmtR(r.preco_atual)}</td>
+      <td class="td-vd ${vdC}" data-label="Var. dia">${r.var_dia!=null?fmtP(r.var_dia):'—'}</td>
+      <td class="td-vs ${vsC}" data-label="Var. sem.">${r.var_semanal!=null?fmtP(r.var_semanal):'—'}</td>
+      <td class="td-div" data-label="Últ. div.">${div!=null?fmtR(div):'—'}</td>
+      <td class="td-dy" data-label="DY%">${r.dy_percent!=null?fmtN(r.dy_percent)+'%':'—'}</td>
+      <td class="td-qty" data-label="Qtd"><input class="cell-input" type="number" min="0" step="1" value="${qty||''}" placeholder="0" data-ticker="${r.ticker}" data-cat="${r._cat}" data-field="qty"></td>
+      <td class="td-pm" data-label="P. médio"><input class="cell-input" type="number" min="0" step="0.01" value="${pm||''}" placeholder="0,00" data-ticker="${r.ticker}" data-cat="${r._cat}" data-field="pm"></td>
+      <td class="td-pos" data-label="Posição">${qty>0?fmtR(pos):'—'}</td>
+      <td class="td-pl ${plC}" data-label="P&L">${pl!=null?fmtR(pl)+(plPct!=null?' ('+fmtP(plPct)+')':''):'—'}</td>
+      <td class="td-sinal">${sinal}</td>
+      <td class="td-btns" style="display:flex;gap:6px;align-items:center">
         <button class="btn-save" data-ticker="${r.ticker}" data-cat="${r._cat}">salvar</button>
         <button class="btn-del" data-ticker="${r.ticker}" data-cat="${r._cat}" title="Excluir ticker">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
