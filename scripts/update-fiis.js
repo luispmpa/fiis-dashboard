@@ -207,6 +207,7 @@ async function popularDividendEvents(fiiTickers, acaoTickers) {
   await upsertSupabase('dividend_events', events);
   console.log(`✓ ${events.length} eventos salvos em dividend_events`);
 }
+
 async function main() {
   console.log(`[${new Date().toISOString()}] Iniciando atualização de ativos`);
   const [fiiTickers, acaoTickers] = await Promise.all([
@@ -218,6 +219,7 @@ async function main() {
   await processarFiis(fiiTickers);
   await processarAcoes(acaoTickers);
   await popularDividendEvents(fiiTickers, acaoTickers);
+
   console.log(`\n[${new Date().toISOString()}] Concluído`);
 }
 

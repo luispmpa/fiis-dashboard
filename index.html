@@ -143,6 +143,7 @@ input.cell-input:focus { border-color:var(--blue); }
 .btn-refresh svg { transition:transform .6s; }
 .btn-refresh.refreshing svg { animation:spin .7s linear infinite; }
 .btn-refresh.refreshing { border-color:var(--accent); color:var(--accent); }
+
 /* ── Navegação principal ── */
 .nav-tabs { display:flex; gap:2px; }
 .nav-tab { font-size:12px; font-weight:500; font-family:var(--sans); padding:6px 18px; border-radius:6px; border:none; background:transparent; color:var(--muted2); cursor:pointer; transition:all .15s; letter-spacing:.02em; }
@@ -153,11 +154,6 @@ input.cell-input:focus { border-color:var(--blue); }
 .page { display:none; }
 .page.active { display:block; }
 
-/* ── Placeholder (Agenda / IR / Notícias ainda não implementados) ── */
-.coming-soon { padding:120px 32px; text-align:center; color:var(--muted); }
-.coming-soon .cs-icon { font-size:36px; display:block; margin-bottom:16px; opacity:.5; }
-.coming-soon h3 { font-size:16px; font-weight:500; color:var(--muted2); margin-bottom:8px; }
-.coming-soon p { font-size:13px; line-height:1.6; max-width:380px; margin:0 auto; }
 /* ── Agenda ── */
 .agenda-wrap { padding:28px 32px; }
 .agenda-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; flex-wrap:wrap; gap:12px; }
@@ -199,6 +195,7 @@ input.cell-input:focus { border-color:var(--blue); }
 .evs-estimated { color:var(--muted); background:var(--bg2); }
 .ev-empty { padding:40px 16px; text-align:center; color:var(--muted); }
 .ev-empty p { font-size:13px; margin-top:6px; line-height:1.6; }
+
 /* === IR Calculator === */
 .ir-wrap { padding:24px 32px; }
 .ir-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
@@ -226,7 +223,8 @@ table.ir-ops th { padding:9px 14px; font-size:10px; letter-spacing:.08em; text-t
 table.ir-ops th:first-child, table.ir-ops th:nth-child(2), table.ir-ops th:nth-child(3) { text-align:left; }
 table.ir-ops td { padding:10px 14px; font-family:var(--mono); font-size:12px; text-align:right; border-bottom:1px solid var(--line); }
 table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-child(3) { text-align:left; font-family:var(--sans); }
-.ir-empty-msg { padding:40px; text-align:center; color:var(--muted); font-size:13px; }  
+.ir-empty-msg { padding:40px; text-align:center; color:var(--muted); font-size:13px; }
+
 /* === Notícias === */
 .news-wrap { padding:24px 32px; }
 .news-filter-bar { display:flex; align-items:center; gap:10px; margin-bottom:20px; flex-wrap:wrap; }
@@ -272,6 +270,7 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
     </button>
   </div>
 </header>
+
 <div id="page-carteira" class="page active">
 <div class="summary">
   <div class="s-card"><div class="s-label">Patrimônio atual</div><div class="s-value" id="s-pat">R$ 0,00</div><div class="s-sub" id="s-pat-sub">custo: R$ 0,00</div></div>
@@ -409,6 +408,7 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
     </div>
   </div>
 </div>
+
 <div class="modal-overlay" id="modal">
   <div class="modal">
     <h2>Adicionar ativo</h2>
@@ -439,6 +439,7 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
     </div>
   </div>
 </div>
+
 <div class="modal-overlay" id="modal-detail">
   <div class="modal modal-detail">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
@@ -888,6 +889,7 @@ async function manualRefresh() {
   btn.classList.remove('refreshing');
   label.textContent = origText;
 }
+
 // ── Navegação entre páginas ──
 document.getElementById('nav-tabs').querySelectorAll('.nav-tab').forEach(tab => {
   tab.addEventListener('click', () => {
@@ -901,7 +903,8 @@ document.getElementById('nav-tabs').querySelectorAll('.nav-tab').forEach(tab => 
     if (page === 'noticias') loadNoticias();
   });
 });
-// ── Agenda ──────────────────────────────────────────────────────────
+
+// ── Agenda ──
 let agendaYear = new Date().getFullYear();
 let agendaMonth = new Date().getMonth() + 1;
 const MONTH_NAMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -922,19 +925,16 @@ async function loadAgenda() {
   const start = agendaYear+'-'+String(agendaMonth).padStart(2,'0')+'-01';
   const lastDay = new Date(agendaYear, agendaMonth, 0).getDate();
   const end = agendaYear+'-'+String(agendaMonth).padStart(2,'0')+'-'+String(lastDay).padStart(2,'0');
-
   let confirmed = [];
   try {
     const res = await fetch(SUPA_URL+'/rest/v1/dividend_events?event_date=gte.'+start+'&event_date=lte.'+end+'&order=event_date',{headers:H});
     const data = await res.json();
     if (Array.isArray(data)) confirmed = data;
   } catch(e) {}
-
   renderAgenda(confirmed);
 }
 
 function renderAgenda(confirmed) {
-  // Estimativas a partir da carteira
   const estimated = [];
   [...Object.values(fiisCart).map(c=>({...c,_cat:'fii'})),
    ...Object.values(acoesCart).map(c=>({...c,_cat:'acao'}))]
@@ -952,15 +952,12 @@ function renderAgenda(confirmed) {
   });
   estimated.sort((a,b) => b.income - a.income);
 
-  // Enriquecer confirmados com qtd da carteira
   const enriched = confirmed.map(e => {
     const cart = fiisCart[e.ticker] || acoesCart[e.ticker] || {};
     const qty = Number(cart.quantidade) || 0;
-    return {...e, quantidade:qty, income:qty*(e.value||0),
-      _cat: isFiiTicker(e.ticker)?'fii':'acao'};
+    return {...e, quantidade:qty, income:qty*(e.value||0), _cat: isFiiTicker(e.ticker)?'fii':'acao'};
   });
 
-  // Cards de resumo
   const all = [...enriched,...estimated];
   const totalRenda = all.reduce((s,e)=>s+(e.income||0),0);
   const countPaying = all.filter(e=>e.income>0).length;
@@ -977,13 +974,11 @@ function renderAgenda(confirmed) {
   document.getElementById('ag-top-sub').textContent = top ? fmtR(top.income) : '—';
   document.getElementById('ag-dy').textContent = dyD>0 ? fmtN(dyN/dyD)+'%' : '—';
 
-  // Seção confirmados
   const confTitle = document.getElementById('ag-confirmed-title');
   document.getElementById('ag-confirmed-count').textContent = enriched.length;
   confTitle.style.display = enriched.length ? 'flex' : 'none';
   document.getElementById('ag-confirmed-list').innerHTML = enriched.map(e=>_renderEventRow(e)).join('');
 
-  // Seção estimadas
   document.getElementById('ag-estimated-count').textContent = estimated.length;
   document.getElementById('ag-estimated-list').innerHTML = estimated.length
     ? estimated.map(e=>_renderEventRow(e)).join('')
@@ -1010,9 +1005,8 @@ function _renderEventRow(e) {
     <span class="ev-status-pill ${stClass}">${stLabel}</span>
   </div>`;
 }
-// ============================================================
-// IR Calculator
-// ============================================================
+
+// ── IR Calculator ──
 let irState = null;
 
 async function loadIR() {
@@ -1020,42 +1014,32 @@ async function loadIR() {
   document.getElementById('ir-main').style.display        = 'none';
   document.getElementById('ir-darf-box').style.display    = 'none';
   document.getElementById('ir-ok-box').style.display      = 'none';
-
   try {
     const [fiiNegs, acNegs, losses] = await Promise.all([
       fetch(SUPA_URL+'/rest/v1/fiis_negociacoes?select=*&order=data_negociacao.asc',{headers:H}).then(r=>r.json()),
       fetch(SUPA_URL+'/rest/v1/acoes_negociacoes?select=*&order=data_negociacao.asc',{headers:H}).then(r=>r.json()),
       fetch(SUPA_URL+'/rest/v1/ir_accumulated_losses?select=*',{headers:H}).then(r=>r.json()).catch(()=>[]),
     ]);
-
     const fiiLoss = Number((Array.isArray(losses)?losses:[]).find(r=>r.category==='fii')?.amount ?? 0);
     const acLoss  = Number((Array.isArray(losses)?losses:[]).find(r=>r.category==='acao')?.amount ?? 0);
-
     const fiiOps = _irComputeOps(Array.isArray(fiiNegs) ? fiiNegs : [], 'fii');
     const acOps  = _irComputeOps(Array.isArray(acNegs)  ? acNegs  : [], 'acao');
-
     const months = [...new Set([...fiiOps, ...acOps].map(o=>o.month))].sort().reverse();
-
     const sel = document.getElementById('ir-month-sel');
     sel.innerHTML = months.length
       ? months.map(m=>`<option value="${m}">${_irFmtYM(m)}</option>`).join('')
       : '<option value="">— sem vendas —</option>';
-
     irState = { fiiOps, acOps, months, fiiLoss, acLoss };
-  } catch(e) {
-    console.error('loadIR:', e);
-  }
-
+  } catch(e) { console.error('loadIR:', e); }
   document.getElementById('ir-loading-msg').style.display = 'none';
   document.getElementById('ir-main').style.display        = 'block';
   renderIR();
 }
 
 function _irComputeOps(negs, cat) {
-  const book = {};
-  const ops  = [];
+  const book = {}, ops = [];
   for (const n of negs) {
-    const t     = n.ticker;
+    const t = n.ticker;
     if (!book[t]) book[t] = { qty:0, totalCost:0 };
     const qty   = Number(n.quantidade    ?? 0);
     const preco = Number(n.preco_unitario ?? 0);
@@ -1089,15 +1073,11 @@ function renderIR() {
   const month = document.getElementById('ir-month-sel').value;
   const fOps  = irState.fiiOps.filter(o => o.month === month);
   const aOps  = irState.acOps.filter(o  => o.month === month);
-
-  // FII: 20% sobre ganho líquido (sem isenção)
   const fVendas = fOps.reduce((s,o) => s + o.receita, 0);
   const fCusto  = fOps.reduce((s,o) => s + o.custo,   0);
   const fGanho  = fVendas - fCusto;
   const fBase   = Math.max(0, fGanho - irState.fiiLoss);
   const fIR     = fBase * 0.20;
-
-  // Ações: 15% — isento se vendas totais do mês ≤ R$20.000
   const aVendas = aOps.reduce((s,o) => s + o.receita, 0);
   const aCusto  = aOps.reduce((s,o) => s + o.custo,   0);
   const aGanho  = aVendas - aCusto;
@@ -1105,31 +1085,22 @@ function renderIR() {
   const aBase   = isento ? 0 : Math.max(0, aGanho - irState.acLoss);
   const aIR     = aBase * 0.15;
   const totalIR = fIR + aIR;
-
   const _s = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
   const _c = (id, val) => {
     const e = document.getElementById(id); if (!e) return;
     e.textContent = fmtR(val);
     e.className   = 'ir-row-value ' + (val >= 0 ? 'pl-pos' : 'pl-neg');
   };
-
-  _s('ir-fii-vendas', fmtR(fVendas));
-  _s('ir-fii-custo',  fmtR(fCusto));
-  _c('ir-fii-ganho',  fGanho);
-  _s('ir-fii-prej',   irState.fiiLoss > 0 ? fmtR(-irState.fiiLoss) : '—');
-  _s('ir-fii-base',   fmtR(fBase));
-  _s('ir-fii-ir',     fIR > 0.005 ? fmtR(fIR) : '—');
-  if (fIR > 0.005) { const e = document.getElementById('ir-fii-ir'); if(e) e.className = 'ir-row-value pl-neg'; }
-
-  _s('ir-ac-vendas', fmtR(aVendas));
-  _s('ir-ac-custo',  fmtR(aCusto));
-  _c('ir-ac-ganho',  aGanho);
-  _s('ir-ac-prej',   irState.acLoss > 0 ? fmtR(-irState.acLoss) : '—');
-  _s('ir-ac-base',   isento ? `isento (${fmtR(aVendas)} ≤ R$ 20k)` : fmtR(aBase));
-  _s('ir-ac-ir',     aIR > 0.005 ? fmtR(aIR) : isento ? 'isento' : '—');
-  if (aIR > 0.005) { const e = document.getElementById('ir-ac-ir'); if(e) e.className = 'ir-row-value pl-neg'; }
-
-  // DARF / ok box
+  _s('ir-fii-vendas', fmtR(fVendas)); _s('ir-fii-custo', fmtR(fCusto)); _c('ir-fii-ganho', fGanho);
+  _s('ir-fii-prej', irState.fiiLoss > 0 ? fmtR(-irState.fiiLoss) : '—');
+  _s('ir-fii-base', fmtR(fBase));
+  _s('ir-fii-ir', fIR > 0.005 ? fmtR(fIR) : '—');
+  if (fIR > 0.005) { const e = document.getElementById('ir-fii-ir'); if(e) e.className='ir-row-value pl-neg'; }
+  _s('ir-ac-vendas', fmtR(aVendas)); _s('ir-ac-custo', fmtR(aCusto)); _c('ir-ac-ganho', aGanho);
+  _s('ir-ac-prej', irState.acLoss > 0 ? fmtR(-irState.acLoss) : '—');
+  _s('ir-ac-base', isento ? `isento (${fmtR(aVendas)} ≤ R$ 20k)` : fmtR(aBase));
+  _s('ir-ac-ir', aIR > 0.005 ? fmtR(aIR) : isento ? 'isento' : '—');
+  if (aIR > 0.005) { const e = document.getElementById('ir-ac-ir'); if(e) e.className='ir-row-value pl-neg'; }
   if (totalIR > 0.005) {
     document.getElementById('ir-darf-box').style.display = 'flex';
     document.getElementById('ir-ok-box').style.display   = 'none';
@@ -1143,56 +1114,39 @@ function renderIR() {
     document.getElementById('ir-darf-box').style.display = 'none';
     document.getElementById('ir-ok-box').style.display   = 'block';
   }
-
-  // Tabela de operações
   const all = [...fOps, ...aOps].sort((a,b) => a.date.localeCompare(b.date));
   const tbody = document.getElementById('ir-ops-body');
   const empty = document.getElementById('ir-ops-empty');
-  if (!all.length) {
-    tbody.innerHTML        = '';
-    empty.style.display    = 'block';
-  } else {
+  if (!all.length) { tbody.innerHTML=''; empty.style.display='block'; }
+  else {
     empty.style.display = 'none';
     tbody.innerHTML = all.map(o => {
       const cls   = o.resultado >= 0 ? 'pl-pos' : 'pl-neg';
-      const badge = o.cat === 'fii'
-        ? '<span class="cat-fii">FII</span>'
-        : '<span class="cat-acao">AÇÃO</span>';
+      const badge = o.cat === 'fii' ? '<span class="cat-fii">FII</span>' : '<span class="cat-acao">AÇÃO</span>';
       const dt = o.date ? o.date.split('-').reverse().join('/') : '—';
       return `<tr>
         <td style="font-family:var(--mono);color:var(--blue)">${o.ticker}</td>
-        <td>${badge}</td>
-        <td>${dt}</td>
+        <td>${badge}</td><td>${dt}</td>
         <td style="font-family:var(--mono)">${o.qty}</td>
-        <td>${fmtR(o.preco)}</td>
-        <td>${fmtR(o.pm)}</td>
+        <td>${fmtR(o.preco)}</td><td>${fmtR(o.pm)}</td>
         <td class="${cls}">${fmtR(o.resultado)}</td>
       </tr>`;
     }).join('');
   }
 }
-// ============================================================
-// Notícias
-// ============================================================
+
+// ── Notícias ──
 let noticiasData = [];
 
 async function loadNoticias() {
   document.getElementById('news-loading').style.display = 'flex';
   document.getElementById('news-grid').style.display    = 'none';
   document.getElementById('news-empty').style.display   = 'none';
-
   try {
-    const res = await fetch(
-      SUPA_URL + '/rest/v1/news_items?select=*&order=published_at.desc&limit=100',
-      { headers: H }
-    );
+    const res = await fetch(SUPA_URL+'/rest/v1/news_items?select=*&order=published_at.desc&limit=100',{headers:H});
     const data = await res.json();
     noticiasData = Array.isArray(data) ? data : [];
-  } catch(e) {
-    console.error('loadNoticias:', e);
-    noticiasData = [];
-  }
-
+  } catch(e) { console.error('loadNoticias:', e); noticiasData = []; }
   const portfolioTickers = [
     ...Object.keys(fiisCart).filter(t => Number(fiisCart[t]?.quantidade) > 0),
     ...Object.keys(acoesCart).filter(t => Number(acoesCart[t]?.quantidade) > 0),
@@ -1200,11 +1154,7 @@ async function loadNoticias() {
   const newsTickers = [...new Set(noticiasData.flatMap(n => _newsGetTickers(n)))];
   const sel = document.getElementById('news-ticker-sel');
   sel.innerHTML = '<option value="">Todos os tickers</option>' +
-    portfolioTickers
-      .filter(t => newsTickers.includes(t))
-      .map(t => `<option value="${t}">${t}</option>`)
-      .join('');
-
+    portfolioTickers.filter(t => newsTickers.includes(t)).map(t => `<option value="${t}">${t}</option>`).join('');
   document.getElementById('news-loading').style.display = 'none';
   renderNoticias();
 }
@@ -1218,53 +1168,40 @@ function _newsGetTickers(item) {
 function renderNoticias() {
   const tickerFilter = document.getElementById('news-ticker-sel').value;
   const sentFilter   = document.getElementById('news-sent-sel').value;
-
   let items = noticiasData;
   if (tickerFilter) items = items.filter(n => _newsGetTickers(n).includes(tickerFilter));
-  if (sentFilter)   items = items.filter(n => (n.sentiment || '').toLowerCase() === sentFilter);
-
+  if (sentFilter)   items = items.filter(n => (n.sentiment||'').toLowerCase() === sentFilter);
   const grid  = document.getElementById('news-grid');
   const empty = document.getElementById('news-empty');
-
-  if (!items.length) {
-    grid.style.display  = 'none';
-    empty.style.display = 'block';
-    return;
-  }
-
+  if (!items.length) { grid.style.display='none'; empty.style.display='block'; return; }
   empty.style.display = 'none';
   grid.style.display  = 'grid';
-
   const portfolioTickers = [...Object.keys(fiisCart), ...Object.keys(acoesCart)];
-
   grid.innerHTML = items.map(n => {
-    const sent      = (n.sentiment || 'neutral').toLowerCase();
-    const sentLabel = { positive:'Positivo', negative:'Negativo', neutral:'Neutro' }[sent] ?? 'Neutro';
-    const sentCls   = { positive:'sent-positive', negative:'sent-negative', neutral:'sent-neutral' }[sent] ?? 'sent-neutral';
+    const sent      = (n.sentiment||'neutral').toLowerCase();
+    const sentLabel = {positive:'Positivo',negative:'Negativo',neutral:'Neutro'}[sent]??'Neutro';
+    const sentCls   = {positive:'sent-positive',negative:'sent-negative',neutral:'sent-neutral'}[sent]??'sent-neutral';
     const tickers   = _newsGetTickers(n);
-    const tickerBadges = tickers
-      .filter(t => portfolioTickers.includes(t))
-      .map(t => `<span class="${isFiiTicker(t) ? 'cat-fii' : 'cat-acao'}">${t}</span>`)
-      .join('');
-    const dt = n.published_at
-      ? new Date(n.published_at).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit' })
-      : '—';
+    const tickerBadges = tickers.filter(t=>portfolioTickers.includes(t))
+      .map(t=>`<span class="${isFiiTicker(t)?'cat-fii':'cat-acao'}">${t}</span>`).join('');
+    const dt = n.published_at ? new Date(n.published_at).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '—';
     const summary = n.summary ? `<div class="news-summary">${n.summary}</div>` : '';
     const linkAttr = n.url ? `href="${n.url}" target="_blank" rel="noopener"` : '';
     return `<div class="news-card">
       <div class="news-card-top">
-        <a class="news-title" ${linkAttr}>${n.title || 'Sem título'}</a>
+        <a class="news-title" ${linkAttr}>${n.title||'Sem título'}</a>
         <span class="news-sent ${sentCls}">${sentLabel}</span>
       </div>
       ${summary}
       <div class="news-meta">
-        <span class="news-source">${n.source || '—'}</span>
+        <span class="news-source">${n.source||'—'}</span>
         <span class="news-date">${dt}</span>
         <div class="news-tickers">${tickerBadges}</div>
       </div>
     </div>`;
   }).join('');
 }
+
 load();
 // recarrega dados do Supabase a cada 60 minutos
 setInterval(() => load(), 60 * 60 * 1000);
