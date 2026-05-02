@@ -456,6 +456,7 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
   <div class="logo">FINANCE<span>/</span>DASH</div>
   <nav class="nav-tabs" id="nav-tabs">
     <button class="nav-tab active" data-page="carteira">Carteira</button>
+    <button class="nav-tab" data-page="dashboard">Dashboard</button>
     <button class="nav-tab" data-page="agenda">Agenda</button>
     <button class="nav-tab" data-page="performance">Performance</button>
     <button class="nav-tab" data-page="ir">IR</button>
@@ -502,6 +503,41 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
   <div class="loading-state"><div class="spin"></div>carregando dados...</div>
 </div>
 </div><!-- /page-carteira -->
+
+<div id="page-dashboard" class="page">
+  <div class="dash-wrap">
+    <div id="dash-loading" class="dash-loading"><div class="spin"></div>carregando dashboard...</div>
+    <div id="dash-main" style="display:none">
+      <div class="dash-header">
+        <div>
+          <div class="dash-title">Minha Carteira</div>
+          <div class="dash-total" id="dash-total">R$ 0,00</div>
+          <div class="dash-pl" id="dash-pl">R$ 0,00 (0,00%)</div>
+        </div>
+        <div class="dash-card" style="min-width:220px">
+          <div class="dash-card-title">Renda mensal</div>
+          <div class="dash-total" style="font-size:24px" id="dash-income">R$ 0,00</div>
+        </div>
+      </div>
+      <div class="dash-grid">
+        <div class="dash-card">
+          <div class="dash-card-title">Performance</div>
+          <div class="dash-chart"><canvas id="dash-chart"></canvas></div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-title">Resumo</div>
+          <div class="preview-row"><span>Total investido</span><span id="dash-invested">R$ 0,00</span></div>
+          <div class="preview-row"><span>Valor atual</span><span id="dash-current">R$ 0,00</span></div>
+          <div class="preview-row"><span>Resultado</span><span id="dash-resume-pl">R$ 0,00</span></div>
+        </div>
+      </div>
+      <div class="dash-assets">
+        <div class="asset-row head"><div>Ativo</div><div>Preço</div><div>Var%</div><div>Qtd</div><div>Valor</div><div>Lucro</div></div>
+        <div id="dash-assets-body"></div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <div id="page-agenda" class="page">
   <div class="agenda-wrap">
@@ -1301,6 +1337,7 @@ document.getElementById('nav-tabs').querySelectorAll('.nav-tab').forEach(tab => 
     const page = tab.dataset.page;
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-' + page).classList.add('active');
+    if (page === 'dashboard') loadDashboard();
     if (page === 'agenda') loadAgenda();
     if (page === 'performance') loadPerformance();
     if (page === 'ir') loadIR();
