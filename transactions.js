@@ -22,29 +22,36 @@ async function _insertNegociacao(cat, payloadBase) {
   const table = cat === 'acao' ? 'acoes_negociacoes' : 'fiis_negociacoes';
   const candidates = _negPrecoFieldByCat[cat] ? [_negPrecoFieldByCat[cat]] : ['preco_unitario', 'preco'];
   let lastErr = null;
+  const rawDate = String(payloadBase.data_negociacao || '').trim();
+  const normalizedDate = /^\d{2}\/\d{2}\/\d{4}$/.test(rawDate)
+    ? `${rawDate.slice(6,10)}-${rawDate.slice(3,5)}-${rawDate.slice(0,2)}`
+    : rawDate;
+
   for (const priceField of candidates) {
-    const payload = { ...payloadBase, [priceField]: payloadBase.preco };
-    delete payload.preco;
-    const res = await fetch(SUPA_URL + '/rest/v1/' + table, {
-      method: 'POST',
-      headers: { ...H, 'Prefer': 'return=minimal' },
-      body: JSON.stringify(payload)
-    });
-    if (res.ok) {
-      _negPrecoFieldByCat[cat] = priceField;
-      return;
+    const payload = {
+      ticker: payloadBase.ticker,
+      tipo: payloadBase.tipo,
+      quantidade: payloadBase.quantidade,
+      [priceField]: payloadBase.preco,
+    };
+    if (normalizedDate) payload.data_negociacao = normalizedDate;
+    if (payloadBase.taxas != null) payload.taxas = payloadBase.taxas;
+
+    const variants = [payload, (() => { const p = { ...payload }; delete p.taxas; return p; })()];
+    for (const body of variants) {
+      const res = await fetch(SUPA_URL + '/rest/v1/' + table, {
+        method: 'POST',
+        headers: { ...H, 'Prefer': 'return=minimal' },
+        body: JSON.stringify(body)
+      });
+      if (res.ok) {
+        _negPrecoFieldByCat[cat] = priceField;
+        return;
+      }
+      lastErr = await res.text().catch(() => 'erro ao inserir negociação');
     }
-    lastErr = await res.text().catch(() => 'erro ao inserir negociação');
   }
   throw new Error(lastErr || 'não foi possível inserir negociação');
-}
-
-async function _upsertCarteiraRow(cartTable, ticker, qty, pm) {
-  await fetch(SUPA_URL + '/rest/v1/' + cartTable, {
-    method: 'POST',
-    headers: { ...H, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify([{ ticker, quantidade: qty, preco_medio: pm }])
-  });
 }
 
 // ════════════════════════════════════
@@ -80,7 +87,10 @@ async function confirmarCompra() {
     await _insertNegociacao(cat, { ticker, tipo: 'C', quantidade: qty, preco, data_negociacao: data, taxas });
     fecharCompra();
     await _recalcularPM(ticker, cat);
-  } catch (e) { console.error('confirmarCompra:', e); }
+  } catch (e) {
+    console.error('confirmarCompra:', e);
+    alert('Não foi possível registrar a compra. Verifique data/valores e tente novamente.');
+  }
   btn.disabled = false; btn.textContent = 'Confirmar';
 }
 
@@ -151,7 +161,10 @@ async function confirmarVenda() {
     render();
     updateSummary();
     if (typeof loadAtividade === 'function') await loadAtividade();
-  } catch (e) { console.error('confirmarVenda:', e); }
+  } catch (e) {
+    console.error('confirmarVenda:', e);
+    alert('Não foi possível registrar a venda. Verifique data/valores e tente novamente.');
+  }
   btn.disabled = false; btn.textContent = 'Confirmar';
 }
 
