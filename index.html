@@ -501,7 +501,15 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
   <div class="loading-state"><div class="spin"></div>carregando dados...</div>
 </div>
 <div id="cart-pie-holder" class="cart-pie-wrap" style="display:none">
-  <div class="section-title">Composição da carteira</div>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+    <div class="section-title">Rendimento da carteira</div>
+    <div class="period-tabs" id="cart-yield-tabs">
+      <button class="period-tab active" data-cp="1M">1M</button>
+      <button class="period-tab" data-cp="3M">3M</button>
+      <button class="period-tab" data-cp="6M">6M</button>
+      <button class="period-tab" data-cp="1Y">1Y</button>
+    </div>
+  </div>
   <div class="cart-pie-inner"><canvas id="cart-pie-chart"></canvas></div>
 </div>
 </div><!-- /page-carteira -->
@@ -913,6 +921,7 @@ let dashboardBySymbol = {};
 let activityRows = [];
 let activityHighGainTickers = new Set();
 let cartPieInst = null;
+let cartYieldPeriod = '1M';
 
 
 async function load() {
@@ -1118,7 +1127,7 @@ function toggleRowMenu(ticker, cat) {
 }
 document.addEventListener('click', e => { if (!e.target.closest('.td-btns')) closeAllRowMenus(); });
 
-function renderCarteiraPie(rows) {
+async function renderCarteiraPie(rows) {
   const holder = document.getElementById('cart-pie-holder');
   if (currentTab !== 'cart') {
     holder.style.display = 'none';
@@ -1129,24 +1138,36 @@ function renderCarteiraPie(rows) {
     .map(r => {
       const c = _getCart(r);
       const v = (Number(c.quantidade) || 0) * (Number(r.preco_atual) || 0);
-      return { ticker: r.ticker, valor: v };
+      return { ticker: r.ticker, valor: v, qty: Number(c.quantidade)||0 };
     })
     .filter(x => x.valor > 0);
   if (!items.length) { holder.style.display = 'none'; return; }
   holder.style.display = 'block';
-  const total = items.reduce((s, i) => s + i.valor, 0);
   const ctx = document.getElementById('cart-pie-chart').getContext('2d');
   if (cartPieInst) cartPieInst.destroy();
+  const mapRange = { '1M':'1mo','3M':'3mo','6M':'6mo','1Y':'1y' };
+  const histories = await Promise.all(items.map(i => _fetchBrapiHist(i.ticker, mapRange[cartYieldPeriod] || '1mo')));
+  const dateSet = new Set();
+  histories.forEach(h => h.forEach(p => dateSet.add(_isoFromTs(p.date))));
+  const dates = [...dateSet].sort();
+  const series = dates.map(d => {
+    let val = 0;
+    items.forEach((it, idx) => {
+      const h = histories[idx] || [];
+      const pt = h.find(x => _isoFromTs(x.date) === d) || null;
+      const price = Number(pt?.close || pt?.adjustedClose || pt?.open || 0);
+      if (price > 0) val += price * it.qty;
+    });
+    return val;
+  }).filter(v=>v>0);
+  if (!series.length) return;
+  const base = series[0] || 1;
+  const returns = series.map(v => ((v - base) / base) * 100);
   cartPieInst = new Chart(ctx, {
-    type: 'doughnut',
-    data: { labels: items.map(i => i.ticker), datasets: [{ data: items.map(i => i.valor) }] },
-    options: {
-      maintainAspectRatio: false,
-      plugins: {
-        tooltip: { callbacks: { label: c => `${c.label}: ${fmtR(c.raw)} (${fmtN((c.raw / total) * 100)}%)` } },
-        legend: { labels: { color: '#dde1ec', boxWidth: 10 } }
-      }
-    }
+    type: 'line',
+    data: { labels: dates.slice(dates.length-returns.length).map(_fmtDateBR), datasets: [{ label:'Carteira', data: returns, borderColor:'#3dffa0', backgroundColor:'rgba(61,255,160,.08)', fill:true, pointRadius:0, tension:.25 }] },
+    options: { maintainAspectRatio:false, plugins:{ tooltip:{ callbacks:{ label:c=>`Carteira: ${fmtR(series[c.dataIndex])} (${_fmtRet(c.raw)})` } }, legend:{ display:false } },
+      scales:{ y:{ ticks:{ callback:v=>_fmtRet(v,true), color:'#5a6078' }, grid:{ color:'rgba(255,255,255,.03)'} }, x:{ ticks:{ color:'#5a6078', maxTicksLimit:6 }, grid:{ color:'rgba(255,255,255,.03)'} } } }
   });
 }
 
@@ -1219,7 +1240,7 @@ let delTicker=null, delCat=null;
 function openDelModal(ticker, cat) {
   delTicker=ticker; delCat=cat;
   const tipo = cat==='acao' ? 'ação' : 'FII';
-  document.getElementById('del-msg').textContent=`Isso remove o ${tipo} "${ticker}" da carteira e da lista de monitoramento. Não pode ser desfeito.`;
+  document.getElementById('del-msg').textContent=`Isso remove o ${tipo} "${ticker}" apenas da sua carteira. O ativo continua na lista de monitoramento.`;
   document.getElementById('modal-del').classList.add('open');
 }
 function closeDelModal() { document.getElementById('modal-del').classList.remove('open'); delTicker=null; delCat=null; }
@@ -1231,12 +1252,9 @@ async function confirmDelete() {
   const prefix = cat==='acao' ? 'acoes' : 'fiis';
   document.getElementById('btn-del-confirm').disabled=true;
   document.getElementById('btn-del-confirm').textContent='Excluindo...';
-  await Promise.all([
-    fetch(SUPA_URL+'/rest/v1/'+prefix+'_carteira?ticker=eq.'+ticker,{method:'DELETE',headers:H}),
-    fetch(SUPA_URL+'/rest/v1/'+prefix+'_mercado?ticker=eq.'+ticker,{method:'DELETE',headers:H}),
-  ]);
-  if (cat==='acao') { delete acoesCart[ticker]; acoesData=acoesData.filter(r=>r.ticker!==ticker); }
-  else { delete fiisCart[ticker]; fiisData=fiisData.filter(r=>r.ticker!==ticker); }
+  await fetch(SUPA_URL+'/rest/v1/'+prefix+'_carteira?ticker=eq.'+ticker,{method:'DELETE',headers:H});
+  if (cat==='acao') { delete acoesCart[ticker]; }
+  else { delete fiisCart[ticker]; }
   closeDelModal();
   document.getElementById('btn-del-confirm').disabled=false;
   document.getElementById('btn-del-confirm').textContent='Excluir';
@@ -1246,6 +1264,10 @@ async function confirmDelete() {
 document.getElementById('view-tabs').querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
   document.getElementById('view-tabs').querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
   t.classList.add('active'); currentTab=t.dataset.tab; render();
+}));
+document.getElementById('cart-yield-tabs').querySelectorAll('.period-tab').forEach(t=>t.addEventListener('click',()=>{
+  document.getElementById('cart-yield-tabs').querySelectorAll('.period-tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active'); cartYieldPeriod=t.dataset.cp; render();
 }));
 
 document.getElementById('search-input').addEventListener('input',e=>{searchTerm=e.target.value.trim();render();});
