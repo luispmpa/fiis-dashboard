@@ -9,6 +9,14 @@ const IRRF_DT_TX     = 0.01;    // 1% sobre ganho líquido DT
 // ── Estado dos modais ──
 let _opTicker = null, _opCat = null;
 
+async function _upsertCarteiraRow(cartTable, ticker, qty, pm) {
+  await fetch(SUPA_URL + '/rest/v1/' + cartTable, {
+    method: 'POST',
+    headers: { ...H, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify([{ ticker, quantidade: qty, preco_medio: pm }])
+  });
+}
+
 // ════════════════════════════════════
 //  MODAL COMPRA
 // ════════════════════════════════════
@@ -117,15 +125,12 @@ async function confirmarVenda() {
     });
     const newQty = Math.max(0, (Number(cart[ticker]?.quantidade) || 0) - qty);
     const pm     = Number(cart[ticker]?.preco_medio) || 0;
-    await fetch(SUPA_URL + '/rest/v1/' + cartTable + '?ticker=eq.' + ticker, {
-      method: 'PATCH',
-      headers: { ...H, 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ quantidade: newQty, preco_medio: pm })
-    });
+    await _upsertCarteiraRow(cartTable, ticker, newQty, pm);
     cart[ticker] = { ...cart[ticker], quantidade: newQty };
     fecharVenda();
     render();
     updateSummary();
+    if (typeof loadAtividade === 'function') await loadAtividade();
   } catch (e) { console.error('confirmarVenda:', e); }
   btn.disabled = false; btn.textContent = 'Confirmar';
 }
@@ -157,14 +162,11 @@ async function _recalcularPM(ticker, cat) {
     }
   }
   const pm = qty > 0 ? totalCost / qty : 0;
-  await fetch(SUPA_URL + '/rest/v1/' + cartTable + '?ticker=eq.' + ticker, {
-    method: 'PATCH',
-    headers: { ...H, 'Prefer': 'return=minimal' },
-    body: JSON.stringify({ quantidade: qty, preco_medio: pm })
-  });
+  await _upsertCarteiraRow(cartTable, ticker, qty, pm);
   cart[ticker] = { ...cart[ticker], quantidade: qty, preco_medio: pm };
   render();
   updateSummary();
+  if (typeof loadAtividade === 'function') await loadAtividade();
 }
 
 // ════════════════════════════════════
