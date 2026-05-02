@@ -216,19 +216,38 @@ input.cell-input:focus { border-color:var(--blue); }
 .ir-darf-right { font-size:11px; color:var(--muted2); text-align:right; line-height:1.6; }
 .ir-ok-box { background:var(--bg1); border:1px solid var(--line); border-radius:12px; padding:14px 20px; margin-bottom:24px; color:var(--muted2); font-size:13px; }
 .ir-grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px; }
+.ir-grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-bottom:24px; }
 .ir-card { background:var(--bg1); border:1px solid var(--line); border-radius:12px; padding:20px; }
 .ir-card-title { font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); padding-bottom:12px; border-bottom:1px solid var(--line); margin-bottom:12px; }
 .ir-row { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); }
 .ir-row:last-child { border-bottom:none; }
 .ir-row-label { font-size:12px; color:var(--muted2); }
 .ir-row-value { font-family:var(--mono); font-size:13px; }
+.ir-irrf-card { background:var(--bg1); border:1px solid var(--line); border-radius:12px; padding:20px; margin-bottom:24px; }
+.ir-irrf-title { font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); padding-bottom:12px; border-bottom:1px solid var(--line); margin-bottom:14px; }
+.ir-irrf-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+.ir-irrf-col { display:flex; flex-direction:column; gap:5px; }
+.ir-irrf-lbl { font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+.ir-irrf-val { font-family:var(--mono); font-size:13px; }
+.badge-dt { background:rgba(255,179,71,.12); color:var(--amber); font-size:10px; font-weight:600; padding:2px 7px; border-radius:3px; font-family:var(--sans); letter-spacing:.04em; }
+.badge-sw { background:rgba(77,159,255,.12); color:#7ab8ff; font-size:10px; font-weight:600; padding:2px 7px; border-radius:3px; font-family:var(--sans); letter-spacing:.04em; }
 .ir-ops-section { margin-top:4px; }
 table.ir-ops { width:100%; border-collapse:collapse; }
 table.ir-ops th { padding:9px 14px; font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); text-align:right; border-bottom:1px solid var(--line2); background:var(--bg1); white-space:nowrap; }
-table.ir-ops th:first-child, table.ir-ops th:nth-child(2), table.ir-ops th:nth-child(3) { text-align:left; }
+table.ir-ops th:first-child, table.ir-ops th:nth-child(2), table.ir-ops th:nth-child(3), table.ir-ops th:nth-child(4) { text-align:left; }
 table.ir-ops td { padding:10px 14px; font-family:var(--mono); font-size:12px; text-align:right; border-bottom:1px solid var(--line); }
-table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-child(3) { text-align:left; font-family:var(--sans); }
+table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-child(3), table.ir-ops td:nth-child(4) { text-align:left; font-family:var(--sans); }
 .ir-empty-msg { padding:40px; text-align:center; color:var(--muted); font-size:13px; }
+.btn-op { font-size:10px; font-family:var(--sans); font-weight:600; padding:4px 9px; border-radius:5px; cursor:pointer; border:1px solid; letter-spacing:.04em; transition:all .15s; line-height:1; }
+.btn-buy { background:rgba(61,255,160,.08); border-color:rgba(61,255,160,.3); color:var(--accent); }
+.btn-buy:hover { background:rgba(61,255,160,.18); border-color:var(--accent); }
+.btn-sell { background:rgba(255,95,95,.08); border-color:rgba(255,95,95,.3); color:var(--red); }
+.btn-sell:hover { background:rgba(255,95,95,.18); border-color:var(--red); }
+.btn-sell:disabled { opacity:.3; cursor:default; }
+.op-result-box { background:var(--bg2); border-radius:8px; padding:12px 14px; margin-bottom:16px; }
+.op-result-row { display:flex; justify-content:space-between; margin-bottom:4px; font-size:12px; color:var(--muted2); }
+.op-result-row:last-child { margin-bottom:0; }
+.op-result-val { font-family:var(--mono); font-size:12px; }
 
 /* === Notícias === */
 .news-wrap { padding:24px 32px; }
@@ -507,15 +526,16 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
         <div class="ir-darf-label">DARF a recolher — <span id="ir-competencia">—</span></div>
         <div class="ir-darf-amount" id="ir-total-ir">R$ 0,00</div>
         <div class="ir-darf-detail" id="ir-darf-detail">—</div>
+        <div class="ir-darf-detail" id="ir-darf-irrf" style="margin-top:4px;color:var(--muted2)"></div>
       </div>
       <div class="ir-darf-right">Vencimento: último dia útil do mês seguinte<br>Código DARF: 6015</div>
     </div>
     <div id="ir-ok-box" class="ir-ok-box" style="display:none">Nenhum imposto a recolher neste mês.</div>
     <div id="ir-loading-msg" style="padding:40px;text-align:center;color:var(--muted);font-family:var(--mono);font-size:12px">carregando...</div>
     <div id="ir-main" style="display:none">
-      <div class="ir-grid2">
+      <div class="ir-grid3">
         <div class="ir-card">
-          <div class="ir-card-title">FIIs — Resumo do mês</div>
+          <div class="ir-card-title">FIIs — 20% (sem isenção)</div>
           <div class="ir-row"><span class="ir-row-label">Vendas brutas</span><span class="ir-row-value" id="ir-fii-vendas">—</span></div>
           <div class="ir-row"><span class="ir-row-label">Custo (PM × qtd)</span><span class="ir-row-value" id="ir-fii-custo">—</span></div>
           <div class="ir-row"><span class="ir-row-label">Ganho bruto</span><span class="ir-row-value" id="ir-fii-ganho">—</span></div>
@@ -524,7 +544,7 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
           <div class="ir-row"><span class="ir-row-label"><strong>IR (20%)</strong></span><span class="ir-row-value" id="ir-fii-ir">—</span></div>
         </div>
         <div class="ir-card">
-          <div class="ir-card-title">Ações — Resumo do mês</div>
+          <div class="ir-card-title">Ações Swing — 15%</div>
           <div class="ir-row"><span class="ir-row-label">Vendas brutas</span><span class="ir-row-value" id="ir-ac-vendas">—</span></div>
           <div class="ir-row"><span class="ir-row-label">Custo (PM × qtd)</span><span class="ir-row-value" id="ir-ac-custo">—</span></div>
           <div class="ir-row"><span class="ir-row-label">Ganho bruto</span><span class="ir-row-value" id="ir-ac-ganho">—</span></div>
@@ -532,12 +552,38 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
           <div class="ir-row"><span class="ir-row-label">Base de cálculo</span><span class="ir-row-value" id="ir-ac-base">—</span></div>
           <div class="ir-row"><span class="ir-row-label"><strong>IR (15%)</strong></span><span class="ir-row-value" id="ir-ac-ir">—</span></div>
         </div>
+        <div class="ir-card">
+          <div class="ir-card-title">Ações Day Trade — 20%</div>
+          <div class="ir-row"><span class="ir-row-label">Vendas brutas</span><span class="ir-row-value" id="ir-dt-vendas">—</span></div>
+          <div class="ir-row"><span class="ir-row-label">Custo (PM × qtd)</span><span class="ir-row-value" id="ir-dt-custo">—</span></div>
+          <div class="ir-row"><span class="ir-row-label">Ganho bruto</span><span class="ir-row-value" id="ir-dt-ganho">—</span></div>
+          <div class="ir-row"><span class="ir-row-label">Prejuízo compensado</span><span class="ir-row-value" id="ir-dt-prej">—</span></div>
+          <div class="ir-row"><span class="ir-row-label">Base de cálculo</span><span class="ir-row-value" id="ir-dt-base">—</span></div>
+          <div class="ir-row"><span class="ir-row-label"><strong>IR (20%)</strong></span><span class="ir-row-value" id="ir-dt-ir">—</span></div>
+        </div>
+      </div>
+      <div class="ir-irrf-card">
+        <div class="ir-irrf-title">IRRF — Dedo-duro retido na fonte</div>
+        <div class="ir-irrf-grid">
+          <div class="ir-irrf-col">
+            <span class="ir-irrf-lbl">FIIs (0,005% vendas)</span>
+            <span class="ir-irrf-val" id="ir-irrf-fii">—</span>
+          </div>
+          <div class="ir-irrf-col">
+            <span class="ir-irrf-lbl">Ações Swing (0,005% vendas)</span>
+            <span class="ir-irrf-val" id="ir-irrf-sw">—</span>
+          </div>
+          <div class="ir-irrf-col">
+            <span class="ir-irrf-lbl">Day Trade (1% ganho líq.)</span>
+            <span class="ir-irrf-val" id="ir-irrf-dt">—</span>
+          </div>
+        </div>
       </div>
       <div class="ir-ops-section">
         <div class="ir-card-title" style="padding:0 0 12px">Operações de venda</div>
         <table class="ir-ops">
           <thead><tr>
-            <th>Ticker</th><th>Tipo</th><th>Data</th>
+            <th>Ticker</th><th>Tipo</th><th>Operação</th><th>Data</th>
             <th>Qtd</th><th>Preço venda</th><th>Preço médio</th><th>Resultado</th>
           </tr></thead>
           <tbody id="ir-ops-body"></tbody>
@@ -671,6 +717,78 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
     <div class="section-title">Histórico de negociações</div>
     <div id="det-neg-wrap">
       <div style="color:var(--muted);font-family:var(--mono);font-size:12px;padding:16px 0">carregando...</div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-compra">
+  <div class="modal" style="width:400px">
+    <h2>Registrar Compra</h2>
+    <p id="mc-subtitle" style="margin-bottom:20px">Lançamento manual de compra — atualiza preço médio automaticamente.</p>
+    <div class="field">
+      <label>Ticker</label>
+      <input id="mc-ticker" type="text" readonly style="opacity:.6;cursor:default">
+    </div>
+    <div class="field">
+      <label>Data da operação</label>
+      <input id="mc-data" type="date">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="field">
+        <label>Quantidade</label>
+        <input id="mc-qty" type="number" min="1" step="1" placeholder="100">
+      </div>
+      <div class="field">
+        <label>Preço unitário (R$)</label>
+        <input id="mc-preco" type="number" min="0" step="0.01" placeholder="0,00">
+      </div>
+    </div>
+    <div class="field">
+      <label>Taxas / corretagem (R$)</label>
+      <input id="mc-taxas" type="number" min="0" step="0.01" placeholder="0,00">
+    </div>
+    <div class="modal-preview show" id="mc-result" style="display:none"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="fecharCompra()">Cancelar</button>
+      <button class="btn-confirm" id="mc-btn-confirm" onclick="confirmarCompra()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-venda">
+  <div class="modal" style="width:400px">
+    <h2>Registrar Venda</h2>
+    <p style="margin-bottom:20px">Lançamento manual de venda — resultado calculado pelo preço médio atual.</p>
+    <div class="field">
+      <label>Ticker</label>
+      <input id="mv-ticker" type="text" readonly style="opacity:.6;cursor:default">
+    </div>
+    <div class="field">
+      <label>Data da operação</label>
+      <input id="mv-data" type="date">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="field">
+        <label>Quantidade</label>
+        <input id="mv-qty" type="number" min="1" step="1" placeholder="100">
+      </div>
+      <div class="field">
+        <label>Preço unitário (R$)</label>
+        <input id="mv-preco" type="number" min="0" step="0.01" placeholder="0,00">
+      </div>
+    </div>
+    <div class="field">
+      <label>Taxas / corretagem (R$)</label>
+      <input id="mv-taxas" type="number" min="0" step="0.01" placeholder="0,00">
+    </div>
+    <div class="op-result-box" id="mv-result" style="display:none">
+      <div class="op-result-row"><span>Preço médio</span><span class="op-result-val" id="mv-pm">—</span></div>
+      <div class="op-result-row"><span>Custo total</span><span class="op-result-val" id="mv-custo">—</span></div>
+      <div class="op-result-row"><span>Resultado</span><span class="op-result-val" id="mv-lucro">—</span></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="fecharVenda()">Cancelar</button>
+      <button class="btn-confirm" id="mv-btn-confirm" onclick="confirmarVenda()">Confirmar</button>
     </div>
   </div>
 </div>
@@ -863,6 +981,8 @@ function render() {
       <td class="td-pl ${plC}" data-label="P&L">${pl!=null?fmtR(pl)+(plPct!=null?' ('+fmtP(plPct)+')':''):'—'}</td>
       <td class="td-sinal">${sinal}</td>
       <td class="td-btns" style="display:flex;gap:6px;align-items:center">
+        <button class="btn-op btn-buy" onclick="abrirCompra('${r.ticker}','${r._cat}')">+C</button>
+        <button class="btn-op btn-sell" onclick="abrirVenda('${r.ticker}','${r._cat}')" ${qty<=0?'disabled':''}>−V</button>
         <button class="btn-save" data-ticker="${r.ticker}" data-cat="${r._cat}">salvar</button>
         <button class="btn-del" data-ticker="${r.ticker}" data-cat="${r._cat}" title="Excluir ticker">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
@@ -1236,6 +1356,13 @@ function _renderEventRow(e) {
 // ── IR Calculator ──
 let irState = null;
 
+function _irFmtYM(ym) {
+  if (!ym) return '—';
+  const [y, m] = ym.split('-');
+  const mn = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  return `${mn[+m - 1]}/${y}`;
+}
+
 async function loadIR() {
   document.getElementById('ir-loading-msg').style.display = 'block';
   document.getElementById('ir-main').style.display        = 'none';
@@ -1247,101 +1374,102 @@ async function loadIR() {
       fetch(SUPA_URL+'/rest/v1/acoes_negociacoes?select=*&order=data_negociacao.asc',{headers:H}).then(r=>r.json()),
       fetch(SUPA_URL+'/rest/v1/ir_accumulated_losses?select=*',{headers:H}).then(r=>r.json()).catch(()=>[]),
     ]);
-    const fiiLoss = Number((Array.isArray(losses)?losses:[]).find(r=>r.category==='fii')?.amount ?? 0);
-    const acLoss  = Number((Array.isArray(losses)?losses:[]).find(r=>r.category==='acao')?.amount ?? 0);
-    const fiiOps = _irComputeOps(Array.isArray(fiiNegs) ? fiiNegs : [], 'fii');
-    const acOps  = _irComputeOps(Array.isArray(acNegs)  ? acNegs  : [], 'acao');
-    const months = [...new Set([...fiiOps, ...acOps].map(o=>o.month))].sort().reverse();
+    const fiiLoss0     = Number((Array.isArray(losses)?losses:[]).find(r=>r.category==='fii')?.amount         ?? 0);
+    const acSwingLoss0 = Number((Array.isArray(losses)?losses:[]).find(r=>r.category==='acao_swing')?.amount  ?? 0);
+    const acDtLoss0    = Number((Array.isArray(losses)?losses:[]).find(r=>r.category==='acao_dt')?.amount     ?? 0);
+    const allMonths = calcularIRMensalBR(
+      Array.isArray(fiiNegs) ? fiiNegs : [],
+      Array.isArray(acNegs)  ? acNegs  : [],
+      fiiLoss0, acSwingLoss0, acDtLoss0
+    );
+    const months = Object.keys(allMonths).sort().reverse();
     const sel = document.getElementById('ir-month-sel');
     sel.innerHTML = months.length
       ? months.map(m=>`<option value="${m}">${_irFmtYM(m)}</option>`).join('')
       : '<option value="">— sem vendas —</option>';
-    irState = { fiiOps, acOps, months, fiiLoss, acLoss };
+    irState = { allMonths, months };
   } catch(e) { console.error('loadIR:', e); }
   document.getElementById('ir-loading-msg').style.display = 'none';
   document.getElementById('ir-main').style.display        = 'block';
   renderIR();
 }
 
-function _irComputeOps(negs, cat) {
-  const book = {}, ops = [];
-  for (const n of negs) {
-    const t = n.ticker;
-    if (!book[t]) book[t] = { qty:0, totalCost:0 };
-    const qty   = Number(n.quantidade    ?? 0);
-    const preco = Number(n.preco_unitario ?? 0);
-    const tipo  = (n.tipo || '').toLowerCase();
-    if (tipo === 'c' || tipo === 'compra') {
-      book[t].totalCost += qty * preco;
-      book[t].qty       += qty;
-    } else if (tipo === 'v' || tipo === 'venda') {
-      const pm      = book[t].qty > 0 ? book[t].totalCost / book[t].qty : 0;
-      const custo   = pm * qty;
-      const receita = preco * qty;
-      const date    = (n.data_negociacao ?? '').slice(0, 10);
-      const month   = date.slice(0, 7);
-      ops.push({ ticker:t, cat, date, month, qty, preco, pm, custo, receita, resultado: receita - custo });
-      book[t].qty       = Math.max(0, book[t].qty - qty);
-      book[t].totalCost = book[t].qty * pm;
-    }
-  }
-  return ops;
-}
-
-function _irFmtYM(ym) {
-  if (!ym) return '—';
-  const [y, m] = ym.split('-');
-  const mn = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-  return `${mn[+m - 1]}/${y}`;
-}
-
 function renderIR() {
   if (!irState) return;
-  const month = document.getElementById('ir-month-sel').value;
-  const fOps  = irState.fiiOps.filter(o => o.month === month);
-  const aOps  = irState.acOps.filter(o  => o.month === month);
-  const fVendas = fOps.reduce((s,o) => s + o.receita, 0);
-  const fCusto  = fOps.reduce((s,o) => s + o.custo,   0);
-  const fGanho  = fVendas - fCusto;
-  const fBase   = Math.max(0, fGanho - irState.fiiLoss);
-  const fIR     = fBase * 0.20;
-  const aVendas = aOps.reduce((s,o) => s + o.receita, 0);
-  const aCusto  = aOps.reduce((s,o) => s + o.custo,   0);
-  const aGanho  = aVendas - aCusto;
-  const isento  = aVendas <= 20000;
-  const aBase   = isento ? 0 : Math.max(0, aGanho - irState.acLoss);
-  const aIR     = aBase * 0.15;
-  const totalIR = fIR + aIR;
+  const ym = document.getElementById('ir-month-sel').value;
+  const md = irState.allMonths[ym];
+  if (!md) {
+    document.getElementById('ir-darf-box').style.display = 'none';
+    document.getElementById('ir-ok-box').style.display   = 'block';
+    document.getElementById('ir-ops-body').innerHTML = '';
+    document.getElementById('ir-ops-empty').style.display = 'block';
+    return;
+  }
   const _s = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
   const _c = (id, val) => {
     const e = document.getElementById(id); if (!e) return;
     e.textContent = fmtR(val);
     e.className   = 'ir-row-value ' + (val >= 0 ? 'pl-pos' : 'pl-neg');
   };
-  _s('ir-fii-vendas', fmtR(fVendas)); _s('ir-fii-custo', fmtR(fCusto)); _c('ir-fii-ganho', fGanho);
-  _s('ir-fii-prej', irState.fiiLoss > 0 ? fmtR(-irState.fiiLoss) : '—');
-  _s('ir-fii-base', fmtR(fBase));
-  _s('ir-fii-ir', fIR > 0.005 ? fmtR(fIR) : '—');
-  if (fIR > 0.005) { const e = document.getElementById('ir-fii-ir'); if(e) e.className='ir-row-value pl-neg'; }
-  _s('ir-ac-vendas', fmtR(aVendas)); _s('ir-ac-custo', fmtR(aCusto)); _c('ir-ac-ganho', aGanho);
-  _s('ir-ac-prej', irState.acLoss > 0 ? fmtR(-irState.acLoss) : '—');
-  _s('ir-ac-base', isento ? `isento (${fmtR(aVendas)} ≤ R$ 20k)` : fmtR(aBase));
-  _s('ir-ac-ir', aIR > 0.005 ? fmtR(aIR) : isento ? 'isento' : '—');
-  if (aIR > 0.005) { const e = document.getElementById('ir-ac-ir'); if(e) e.className='ir-row-value pl-neg'; }
-  if (totalIR > 0.005) {
-    document.getElementById('ir-darf-box').style.display = 'flex';
-    document.getElementById('ir-ok-box').style.display   = 'none';
-    document.getElementById('ir-total-ir').textContent   = fmtR(totalIR);
-    document.getElementById('ir-competencia').textContent = _irFmtYM(month);
+  const _ir = (id, val) => {
+    const e = document.getElementById(id); if (!e) return;
+    if (val > 0.005) { e.textContent = fmtR(val); e.className = 'ir-row-value pl-neg'; }
+    else { e.textContent = '—'; e.className = 'ir-row-value'; }
+  };
+
+  // FII card
+  _s('ir-fii-vendas', fmtR(md.fii.vendas));
+  _s('ir-fii-custo',  fmtR(md.fii.custo));
+  _c('ir-fii-ganho',  md.fii.ganho);
+  _s('ir-fii-prej',   md.fii.prejComp > 0.005 ? fmtR(-md.fii.prejComp) : '—');
+  _s('ir-fii-base',   fmtR(md.fii.base));
+  _ir('ir-fii-ir',    md.fii.ir);
+
+  // Ação Swing card
+  _s('ir-ac-vendas', fmtR(md.acSwing.vendas));
+  _s('ir-ac-custo',  fmtR(md.acSwing.custo));
+  _c('ir-ac-ganho',  md.acSwing.ganho);
+  _s('ir-ac-prej',   md.acSwing.prejComp > 0.005 ? fmtR(-md.acSwing.prejComp) : '—');
+  _s('ir-ac-base',   md.acSwing.isento ? `isento (${fmtR(md.acSwing.vendas)} ≤ R$ 20k)` : fmtR(md.acSwing.base));
+  if (md.acSwing.isento) {
+    const e = document.getElementById('ir-ac-ir'); if(e){e.textContent='isento';e.className='ir-row-value';}
+  } else { _ir('ir-ac-ir', md.acSwing.ir); }
+
+  // Day Trade card
+  _s('ir-dt-vendas', fmtR(md.acDt.vendas));
+  _s('ir-dt-custo',  fmtR(md.acDt.custo));
+  _c('ir-dt-ganho',  md.acDt.ganho);
+  _s('ir-dt-prej',   md.acDt.prejComp > 0.005 ? fmtR(-md.acDt.prejComp) : '—');
+  _s('ir-dt-base',   fmtR(md.acDt.base));
+  _ir('ir-dt-ir',    md.acDt.ir);
+
+  // IRRF
+  _s('ir-irrf-fii', md.fii.irrf     > 0.005 ? fmtR(md.fii.irrf)     : '—');
+  _s('ir-irrf-sw',  md.acSwing.irrf > 0.005 ? fmtR(md.acSwing.irrf) : '—');
+  _s('ir-irrf-dt',  md.acDt.irrf    > 0.005 ? fmtR(md.acDt.irrf)    : '—');
+
+  // DARF box
+  if (md.totalIR > 0.005) {
+    document.getElementById('ir-darf-box').style.display    = 'flex';
+    document.getElementById('ir-ok-box').style.display      = 'none';
+    document.getElementById('ir-total-ir').textContent      = fmtR(md.totalDARF);
+    document.getElementById('ir-competencia').textContent   = _irFmtYM(ym);
     const parts = [];
-    if (fIR > 0.005) parts.push('FIIs: ' + fmtR(fIR));
-    if (aIR > 0.005) parts.push('Ações: ' + fmtR(aIR));
+    if (md.fii.ir      > 0.005) parts.push('FIIs: '       + fmtR(md.fii.ir));
+    if (md.acSwing.ir  > 0.005) parts.push('Swing: '      + fmtR(md.acSwing.ir));
+    if (md.acDt.ir     > 0.005) parts.push('Day Trade: '  + fmtR(md.acDt.ir));
     document.getElementById('ir-darf-detail').textContent = parts.join('  +  ');
+    if (md.totalIRRF > 0.005)
+      document.getElementById('ir-darf-irrf').textContent = `IR bruto ${fmtR(md.totalIR)}  −  IRRF ${fmtR(md.totalIRRF)}  =  DARF ${fmtR(md.totalDARF)}`;
+    else
+      document.getElementById('ir-darf-irrf').textContent = '';
   } else {
     document.getElementById('ir-darf-box').style.display = 'none';
     document.getElementById('ir-ok-box').style.display   = 'block';
   }
-  const all = [...fOps, ...aOps].sort((a,b) => a.date.localeCompare(b.date));
+
+  // Ops table
+  const all = [...md.fii.ops, ...md.acSwing.ops, ...md.acDt.ops].sort((a,b)=>a.date.localeCompare(b.date));
   const tbody = document.getElementById('ir-ops-body');
   const empty = document.getElementById('ir-ops-empty');
   if (!all.length) { tbody.innerHTML=''; empty.style.display='block'; }
@@ -1349,11 +1477,16 @@ function renderIR() {
     empty.style.display = 'none';
     tbody.innerHTML = all.map(o => {
       const cls   = o.resultado >= 0 ? 'pl-pos' : 'pl-neg';
-      const badge = o.cat === 'fii' ? '<span class="cat-fii">FII</span>' : '<span class="cat-acao">AÇÃO</span>';
+      const badge = o.cat === 'fii'
+        ? '<span class="cat-fii">FII</span>'
+        : '<span class="cat-acao">AÇÃO</span>';
+      const opBadge = o.tipo === 'DT'
+        ? '<span class="badge-dt">DT</span>'
+        : o.tipo === 'SW' ? '<span class="badge-sw">SW</span>' : '—';
       const dt = o.date ? o.date.split('-').reverse().join('/') : '—';
       return `<tr>
         <td style="font-family:var(--mono);color:var(--blue)">${o.ticker}</td>
-        <td>${badge}</td><td>${dt}</td>
+        <td>${badge}</td><td>${opBadge}</td><td>${dt}</td>
         <td style="font-family:var(--mono)">${o.qty}</td>
         <td>${fmtR(o.preco)}</td><td>${fmtR(o.pm)}</td>
         <td class="${cls}">${fmtR(o.resultado)}</td>
@@ -1890,5 +2023,6 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js');
 }
 </script>
+<script src="transactions.js"></script>
 </body>
 </html>
