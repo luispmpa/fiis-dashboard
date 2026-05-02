@@ -900,13 +900,17 @@ let currentCat='fii';   // 'fii' | 'acao' | 'all'
 let currentTab='all';   // 'all' | 'cart'
 let searchTerm='', previewData=null;
 let sortCol=null, sortDir=1;
+let dashboardData = null;
+let dashboardBySymbol = {};
+
 
 async function load() {
-  const [fmRes,fcRes,amRes,acRes] = await Promise.all([
+  const [fmRes,fcRes,amRes,acRes,dashRes] = await Promise.all([
     fetch(SUPA_URL+'/rest/v1/fiis_mercado?select=*&order=ticker',{headers:H}),
     fetch(SUPA_URL+'/rest/v1/fiis_carteira?select=*',{headers:H}),
     fetch(SUPA_URL+'/rest/v1/acoes_mercado?select=*&order=ticker',{headers:H}),
     fetch(SUPA_URL+'/rest/v1/acoes_carteira?select=*',{headers:H}),
+    fetch('/dashboard').catch(() => null),
   ]);
   fiisData = await fmRes.json();
   const fc = await fcRes.json();
@@ -918,9 +922,29 @@ async function load() {
   acoesCart = {};
   ac.forEach(c => acoesCart[c.ticker]=c);
 
-  // Anota categoria em cada row para visão combinada
-  fiisData.forEach(r => { r._cat='fii'; r._seg=r.segmento; });
-  acoesData.forEach(r => { r._cat='acao'; r._seg=r.setor; });
+  // /dashboard como fonte principal de posição, PM e preço atual
+  dashboardData = null; dashboardBySymbol = {};
+  if (dashRes && dashRes.ok) {
+    dashboardData = await dashRes.json();
+    console.log('[dashboard] payload:', dashboardData);
+    (dashboardData.assets || []).forEach(a => {
+      dashboardBySymbol[a.symbol] = a;
+      const bucket = isFiiTicker(a.symbol) ? fiisCart : acoesCart;
+      bucket[a.symbol] = { ticker: a.symbol, quantidade: Number(a.quantity)||0, preco_medio: Number(a.avg_price)||0 };
+    });
+  } else {
+    console.log('[dashboard] indisponível; fallback Supabase puro');
+  }
+
+  // Anota categoria em cada row para visão combinada + injeta preço atual do /dashboard
+  fiisData.forEach(r => {
+    r._cat='fii'; r._seg=r.segmento;
+    const d=dashboardBySymbol[r.ticker]; if (d) r.preco_atual = Number(d.current_price) || r.preco_atual;
+  });
+  acoesData.forEach(r => {
+    r._cat='acao'; r._seg=r.setor;
+    const d=dashboardBySymbol[r.ticker]; if (d) r.preco_atual = Number(d.current_price) || r.preco_atual;
+  });
 
   render(); updateSummary(); updateLastUpdate();
 }
@@ -937,6 +961,20 @@ function _getCart(r) {
 }
 
 function updateSummary() {
+  if (dashboardData && currentCat==='all') {
+    const total = Number(dashboardData.total_value||0);
+    const invested = Number(dashboardData.total_invested||0);
+    const profit = Number(dashboardData.profit||0);
+    const profitPct = Number(dashboardData.profit_percent||0);
+    document.getElementById('s-pat').textContent=fmtR(total);
+    document.getElementById('s-pat-sub').textContent='custo: '+fmtR(invested);
+    document.getElementById('s-renda').textContent=fmtR(Number(dashboardData.monthly_income||0))+'/mês';
+    document.getElementById('s-dy').textContent='—';
+    const el=document.getElementById('s-res');
+    el.textContent=fmtR(profit); el.className='s-value '+(profit>=0?'up':'down');
+    document.getElementById('s-res-sub').textContent=fmtP(profitPct)+' vs. custo';
+    return;
+  }
   const rows = currentCat==='fii' ? fiisData : currentCat==='acao' ? acoesData : [...fiisData,...acoesData];
   let pat=0,custo=0,renda=0,dyN=0,dyD=0;
   rows.forEach(r => {
@@ -1290,67 +1328,6 @@ async function manualRefresh() {
   label.textContent = origText;
 }
 
-
-let dashboardChart = null;
-
-function _dashSetText(id, val){ const el=document.getElementById(id); if(el) el.textContent=val; }
-
-function _renderDashboardChart(assets){
-  const ctx=document.getElementById('dash-chart');
-  if(!ctx) return;
-  const labels=assets.map(a=>a.symbol);
-  const vals=assets.map(a=>Number(a.total_value||0));
-  if(dashboardChart) dashboardChart.destroy();
-  dashboardChart = new Chart(ctx,{
-    type:'line',
-    data:{labels,datasets:[{label:'Valor por ativo',data:vals,borderColor:'#3dffa0',backgroundColor:'rgba(61,255,160,.15)',fill:true,tension:.25}]},
-    options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8890a8'}},y:{ticks:{color:'#8890a8'}}},maintainAspectRatio:false}
-  });
-}
-
-function renderDashboard(data){
-  const total = Number(data.total_value||0);
-  const invested = Number(data.total_invested||0);
-  const profit = Number(data.profit||0);
-  const profitPct = Number(data.profit_percent||0);
-  _dashSetText('dash-total', fmtR(total));
-  const plEl=document.getElementById('dash-pl');
-  plEl.textContent=`${fmtR(profit)} (${fmtPct(profitPct)})`;
-  plEl.className='dash-pl '+(profit>=0?'pl-pos':'pl-neg');
-  _dashSetText('dash-income', fmtR(Number(data.monthly_income||0)));
-  _dashSetText('dash-invested', fmtR(invested));
-  _dashSetText('dash-current', fmtR(total));
-  const r=document.getElementById('dash-resume-pl');
-  r.textContent=fmtR(profit); r.className=profit>=0?'pl-pos':'pl-neg';
-  const body=document.getElementById('dash-assets-body');
-  const assets=Array.isArray(data.assets)?data.assets:[];
-  body.innerHTML = assets.map(a=>{
-    const p=Number(a.profit||0);
-    const pp=Number(a.profit_percent||0);
-    const varPct = (a.current_price && a.avg_price) ? ((Number(a.current_price)-Number(a.avg_price))/Number(a.avg_price))*100 : 0;
-    return `<div class="asset-row">
-      <div class="asset-ticker">${a.symbol}</div><div>${fmtR(Number(a.current_price||0))}</div>
-      <div class="${varPct>=0?'up':'down'}">${fmtPct(varPct)}</div><div>${Number(a.quantity||0)}</div>
-      <div>${fmtR(Number(a.total_value||0))}</div><div class="${p>=0?'pl-pos':'pl-neg'}">${fmtR(p)} (${fmtPct(pp)})</div>
-    </div>`;
-  }).join('') || '<div class="empty"><p>Nenhum ativo em carteira.</p></div>';
-  _renderDashboardChart(assets);
-}
-
-async function loadDashboard(){
-  document.getElementById('dash-loading').style.display='flex';
-  document.getElementById('dash-main').style.display='none';
-  try{
-    const res = await fetch('/dashboard');
-    const data = await res.json();
-    renderDashboard(data);
-  }catch(e){
-    console.error('loadDashboard:',e);
-    document.getElementById('dash-assets-body').innerHTML='<div class="empty"><p>Falha ao carregar /dashboard.</p></div>';
-  }
-  document.getElementById('dash-loading').style.display='none';
-  document.getElementById('dash-main').style.display='block';
-}
 
 // ── Navegação entre páginas ──
 document.getElementById('nav-tabs').querySelectorAll('.nav-tab').forEach(tab => {
