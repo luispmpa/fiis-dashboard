@@ -297,6 +297,24 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
 .perf-info-note{font-size:10px;color:var(--muted);font-family:var(--mono);}
 .perf-chart-wrap{background:var(--bg1);border:1px solid var(--line);border-radius:12px;padding:20px;position:relative;}
 .perf-chart-inner{position:relative;height:340px;}
+
+/* === Dashboard (Google Finance style) === */
+.dash-wrap{padding:24px 32px;}
+.dash-header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px;}
+.dash-title{font-size:24px;font-weight:600;}
+.dash-total{font-family:var(--mono);font-size:32px;font-weight:500;}
+.dash-pl{font-family:var(--mono);font-size:13px;margin-top:4px;}
+.dash-grid{display:grid;grid-template-columns:1.2fr .8fr;gap:14px;margin-bottom:16px;}
+.dash-card{background:var(--bg1);border:1px solid var(--line);border-radius:12px;padding:16px;}
+.dash-card-title{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
+.dash-chart{height:220px;position:relative;}
+.dash-assets{display:flex;flex-direction:column;gap:8px;}
+.asset-row{display:grid;grid-template-columns:90px 95px 70px 70px 110px 110px;gap:10px;align-items:center;padding:12px 14px;background:var(--bg1);border:1px solid var(--line);border-radius:10px;font-family:var(--mono);font-size:12px;}
+.asset-row.head{font-family:var(--sans);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:transparent;border:none;padding:2px 6px;}
+.asset-ticker{font-weight:600;color:var(--blue);font-size:13px;}
+.dash-loading{display:flex;align-items:center;justify-content:center;gap:10px;padding:50px;color:var(--muted);font-family:var(--mono);}
+@media (max-width: 980px){.dash-grid{grid-template-columns:1fr}.asset-row{grid-template-columns:1fr 1fr;grid-template-areas:'ticker price' 'var qty' 'val pl';}.asset-row>div:nth-child(1){grid-area:ticker}.asset-row>div:nth-child(2){grid-area:price}.asset-row>div:nth-child(3){grid-area:var}.asset-row>div:nth-child(4){grid-area:qty}.asset-row>div:nth-child(5){grid-area:val}.asset-row>div:nth-child(6){grid-area:pl}.asset-row.head{display:none;}}
+
 .perf-loading-state{display:flex;align-items:center;justify-content:center;gap:10px;height:340px;color:var(--muted);font-family:var(--mono);font-size:12px;}
 .perf-empty-state{display:flex;align-items:center;justify-content:center;height:240px;color:var(--muted);font-size:13px;text-align:center;flex-direction:column;gap:12px;}
 /* Asset Chart in Modal */
@@ -846,13 +864,17 @@ let currentCat='fii';   // 'fii' | 'acao' | 'all'
 let currentTab='all';   // 'all' | 'cart'
 let searchTerm='', previewData=null;
 let sortCol=null, sortDir=1;
+let dashboardData = null;
+let dashboardBySymbol = {};
+
 
 async function load() {
-  const [fmRes,fcRes,amRes,acRes] = await Promise.all([
+  const [fmRes,fcRes,amRes,acRes,dashRes] = await Promise.all([
     fetch(SUPA_URL+'/rest/v1/fiis_mercado?select=*&order=ticker',{headers:H}),
     fetch(SUPA_URL+'/rest/v1/fiis_carteira?select=*',{headers:H}),
     fetch(SUPA_URL+'/rest/v1/acoes_mercado?select=*&order=ticker',{headers:H}),
     fetch(SUPA_URL+'/rest/v1/acoes_carteira?select=*',{headers:H}),
+    fetch('/dashboard').catch(() => null),
   ]);
   fiisData = await fmRes.json();
   const fc = await fcRes.json();
@@ -864,9 +886,29 @@ async function load() {
   acoesCart = {};
   ac.forEach(c => acoesCart[c.ticker]=c);
 
-  // Anota categoria em cada row para visão combinada
-  fiisData.forEach(r => { r._cat='fii'; r._seg=r.segmento; });
-  acoesData.forEach(r => { r._cat='acao'; r._seg=r.setor; });
+  // /dashboard como fonte principal de posição, PM e preço atual
+  dashboardData = null; dashboardBySymbol = {};
+  if (dashRes && dashRes.ok) {
+    dashboardData = await dashRes.json();
+    console.log('[dashboard] payload:', dashboardData);
+    (dashboardData.assets || []).forEach(a => {
+      dashboardBySymbol[a.symbol] = a;
+      const bucket = isFiiTicker(a.symbol) ? fiisCart : acoesCart;
+      bucket[a.symbol] = { ticker: a.symbol, quantidade: Number(a.quantity)||0, preco_medio: Number(a.avg_price)||0 };
+    });
+  } else {
+    console.log('[dashboard] indisponível; fallback Supabase puro');
+  }
+
+  // Anota categoria em cada row para visão combinada + injeta preço atual do /dashboard
+  fiisData.forEach(r => {
+    r._cat='fii'; r._seg=r.segmento;
+    const d=dashboardBySymbol[r.ticker]; if (d) r.preco_atual = Number(d.current_price) || r.preco_atual;
+  });
+  acoesData.forEach(r => {
+    r._cat='acao'; r._seg=r.setor;
+    const d=dashboardBySymbol[r.ticker]; if (d) r.preco_atual = Number(d.current_price) || r.preco_atual;
+  });
 
   render(); updateSummary(); updateLastUpdate();
 }
@@ -883,6 +925,20 @@ function _getCart(r) {
 }
 
 function updateSummary() {
+  if (dashboardData && currentCat==='all') {
+    const total = Number(dashboardData.total_value||0);
+    const invested = Number(dashboardData.total_invested||0);
+    const profit = Number(dashboardData.profit||0);
+    const profitPct = Number(dashboardData.profit_percent||0);
+    document.getElementById('s-pat').textContent=fmtR(total);
+    document.getElementById('s-pat-sub').textContent='custo: '+fmtR(invested);
+    document.getElementById('s-renda').textContent=fmtR(Number(dashboardData.monthly_income||0))+'/mês';
+    document.getElementById('s-dy').textContent='—';
+    const el=document.getElementById('s-res');
+    el.textContent=fmtR(profit); el.className='s-value '+(profit>=0?'up':'down');
+    document.getElementById('s-res-sub').textContent=fmtP(profitPct)+' vs. custo';
+    return;
+  }
   const rows = currentCat==='fii' ? fiisData : currentCat==='acao' ? acoesData : [...fiisData,...acoesData];
   let pat=0,custo=0,renda=0,dyN=0,dyD=0;
   rows.forEach(r => {
@@ -1235,6 +1291,7 @@ async function manualRefresh() {
   btn.classList.remove('refreshing');
   label.textContent = origText;
 }
+
 
 // ── Navegação entre páginas ──
 document.getElementById('nav-tabs').querySelectorAll('.nav-tab').forEach(tab => {
