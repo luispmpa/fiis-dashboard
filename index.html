@@ -95,6 +95,13 @@ input.cell-input:focus { border-color:var(--blue); }
 .btn-save:hover { border-color:var(--accent); color:var(--accent); }
 .btn-del { background:none; border:none; color:var(--muted); padding:4px 6px; border-radius:5px; cursor:pointer; transition:color .15s; line-height:1; }
 .btn-del:hover { color:var(--red); }
+.btn-menu{background:none;border:1px solid var(--line);color:var(--muted2);padding:3px 8px;border-radius:5px;cursor:pointer;line-height:1;}
+.row-menu{position:absolute;right:0;top:24px;background:var(--bg2);border:1px solid var(--line2);border-radius:8px;padding:4px;min-width:140px;z-index:9;display:none;}
+.row-menu.open{display:block;}
+.row-menu button{width:100%;text-align:left;background:none;border:none;color:var(--text);font-size:12px;padding:7px 8px;cursor:pointer;}
+.row-menu button:hover{background:var(--bg3);}
+.cart-pie-wrap{background:var(--bg1);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:0 32px 12px;}
+.cart-pie-inner{height:220px;position:relative;}
 
 .signal { font-size:10px; font-weight:600; letter-spacing:.06em; font-family:var(--sans); }
 .sig-buy { color:var(--accent); } .sig-sell { color:var(--red); } .sig-hold { color:var(--amber); } .sig-none { color:var(--muted); }
@@ -492,6 +499,10 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
 
 <div id="table-area">
   <div class="loading-state"><div class="spin"></div>carregando dados...</div>
+</div>
+<div id="cart-pie-holder" class="cart-pie-wrap" style="display:none">
+  <div class="section-title">Composição da carteira</div>
+  <div class="cart-pie-inner"><canvas id="cart-pie-chart"></canvas></div>
 </div>
 </div><!-- /page-carteira -->
 <div id="page-atividade" class="page">
@@ -901,6 +912,7 @@ let dashboardData = null;
 let dashboardBySymbol = {};
 let activityRows = [];
 let activityHighGainTickers = new Set();
+let cartPieInst = null;
 
 
 async function load() {
@@ -1072,12 +1084,13 @@ function render() {
       <td class="td-pos" data-label="Posição">${qty>0?fmtR(pos):'—'}</td>
       <td class="td-pl ${plC}" data-label="P&L">${pl!=null?fmtR(pl)+(plPct!=null?' ('+fmtP(plPct)+')':''):'—'}</td>
       <td class="td-sinal">${sinal}${activityHighGainTickers.has(r.ticker)?'<div class="signal sig-buy" style="margin-top:4px">▲ +5% em até 30d</div>':''}</td>
-      <td class="td-btns" style="display:flex;gap:6px;align-items:center">
+      <td class="td-btns" style="display:flex;gap:6px;align-items:center;position:relative">
         <button class="btn-op btn-buy" onclick="abrirCompra('${r.ticker}','${r._cat}')">+C</button>
         <button class="btn-op btn-sell" onclick="abrirVenda('${r.ticker}','${r._cat}')" ${qty<=0?'disabled':''}>−V</button>
-                <button class="btn-del" data-ticker="${r.ticker}" data-cat="${r._cat}" title="Excluir ticker">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-        </button>
+        <button class="btn-menu" onclick="toggleRowMenu('${r.ticker}','${r._cat}')">⋯</button>
+        <div class="row-menu" id="menu-${r._cat}-${r.ticker}">
+          ${qty>0?`<button onclick="openDelModal('${r.ticker}','${r._cat}');closeAllRowMenus()">Excluir da carteira</button>`:'<button disabled style="opacity:.45;cursor:default">Fora da carteira</button>'}
+        </div>
       </td>
     </tr>`;
   }).join('');
@@ -1090,7 +1103,51 @@ function render() {
     <tbody>${tbody}</tbody>
   </table></div>`;
 
-  document.querySelectorAll('.btn-del').forEach(b=>b.addEventListener('click',()=>openDelModal(b.dataset.ticker,b.dataset.cat)));
+  renderCarteiraPie(rows);
+}
+
+function closeAllRowMenus() {
+  document.querySelectorAll('.row-menu.open').forEach(el => el.classList.remove('open'));
+}
+function toggleRowMenu(ticker, cat) {
+  const el = document.getElementById(`menu-${cat}-${ticker}`);
+  if (!el) return;
+  const willOpen = !el.classList.contains('open');
+  closeAllRowMenus();
+  if (willOpen) el.classList.add('open');
+}
+document.addEventListener('click', e => { if (!e.target.closest('.td-btns')) closeAllRowMenus(); });
+
+function renderCarteiraPie(rows) {
+  const holder = document.getElementById('cart-pie-holder');
+  if (currentTab !== 'cart') {
+    holder.style.display = 'none';
+    if (cartPieInst) { cartPieInst.destroy(); cartPieInst = null; }
+    return;
+  }
+  const items = rows
+    .map(r => {
+      const c = _getCart(r);
+      const v = (Number(c.quantidade) || 0) * (Number(r.preco_atual) || 0);
+      return { ticker: r.ticker, valor: v };
+    })
+    .filter(x => x.valor > 0);
+  if (!items.length) { holder.style.display = 'none'; return; }
+  holder.style.display = 'block';
+  const total = items.reduce((s, i) => s + i.valor, 0);
+  const ctx = document.getElementById('cart-pie-chart').getContext('2d');
+  if (cartPieInst) cartPieInst.destroy();
+  cartPieInst = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels: items.map(i => i.ticker), datasets: [{ data: items.map(i => i.valor) }] },
+    options: {
+      maintainAspectRatio: false,
+      plugins: {
+        tooltip: { callbacks: { label: c => `${c.label}: ${fmtR(c.raw)} (${fmtN((c.raw / total) * 100)}%)` } },
+        legend: { labels: { color: '#dde1ec', boxWidth: 10 } }
+      }
+    }
+  });
 }
 
 async function openDetailModal(ticker, cat) {
@@ -1676,7 +1733,7 @@ const _fmtDateBR = iso => { if (!iso) return '—'; const [y,m,d] = iso.split('-
 async function _fetchBrapiHist(ticker, range) {
   try {
     const tok = BRAPI_TOKEN ? `&token=${BRAPI_TOKEN}` : '';
-    const r = await fetch(`https://brapi.dev/api/quote/${ticker}?range=${range}&interval=1d${tok}`);
+    const r = await fetch(`https://brapi.dev/api/quote/${ticker}?range=${range}&interval=1d&fundamental=false${tok}`);
     const d = await r.json();
     return d.results?.[0]?.historicalDataPrice || [];
   } catch(e) { return []; }
@@ -1968,7 +2025,14 @@ async function renderAssetChart(ticker, cat) {
 
   const rangeMap = { '1M':'1mo', '3M':'3mo', '6M':'6mo', '1Y':'1y' };
   const range    = rangeMap[assetChartPeriod] || '3mo';
-  const hist     = await _fetchBrapiHist(ticker, range);
+  let hist       = await _fetchBrapiHist(ticker, range);
+  if ((assetChartPeriod === '6M' || assetChartPeriod === '1Y') && hist.length < 40) {
+    const bigHist = await _fetchBrapiHist(ticker, '5y');
+    const daysBack = assetChartPeriod === '6M' ? 185 : 370;
+    const cut = Date.now() - daysBack * 86400000;
+    const sliced = bigHist.filter(p => (Number(p.date) || 0) * 1000 >= cut);
+    if (sliced.length > hist.length) hist = sliced;
+  }
 
   if (!hist.length) {
     innerEl.innerHTML = `<div class="det-chart-loading" style="color:var(--muted)">${
@@ -2079,9 +2143,11 @@ async function renderAssetChart(ticker, cat) {
           backgroundColor: '#1c2030', borderColor: 'rgba(255,255,255,.1)', borderWidth: 1,
           titleColor: '#8890a8', bodyColor: '#dde1ec', padding: 8,
           callbacks: {
-            label: ctx => ctx.datasetIndex === 0
-              ? `${ticker}: ${_fmtRet(ctx.raw)}`
-              : `P.M.: ${_fmtRet(ctx.raw)}`
+            label: ctx => {
+              const idx = ctx.dataIndex;
+              if (ctx.datasetIndex === 0) return `${ticker}: ${fmtR(prices[idx])} (${_fmtRet(ctx.raw)})`;
+              return `P.M.: ${fmtR(pm)} (${_fmtRet(ctx.raw)})`;
+            }
           }
         }
       },
