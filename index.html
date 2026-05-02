@@ -102,6 +102,14 @@ input.cell-input:focus { border-color:var(--blue); }
 .row-menu button:hover{background:var(--bg3);}
 .cart-pie-wrap{background:var(--bg1);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:0 32px 12px;}
 .cart-pie-inner{height:220px;position:relative;}
+.filter-dd{position:relative;min-width:240px;}
+.filter-btn{background:var(--bg2);border:1px solid var(--line2);color:var(--text);padding:7px 10px;border-radius:7px;font-size:12px;cursor:pointer;min-width:220px;text-align:left;}
+.filter-chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.filter-chip{display:inline-flex;align-items:center;gap:6px;background:var(--bg3);padding:2px 7px;border-radius:999px;font-size:11px;}
+.filter-chip b{cursor:pointer;color:var(--muted2);font-weight:700;}
+.filter-panel{position:absolute;top:36px;left:0;background:var(--bg2);border:1px solid var(--line2);border-radius:8px;padding:8px;display:none;z-index:20;max-height:220px;overflow:auto;min-width:220px;}
+.filter-panel.open{display:block;}
+.filter-opt{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text);padding:4px 2px;}
 
 .signal { font-size:10px; font-weight:600; letter-spacing:.06em; font-family:var(--sans); }
 .sig-buy { color:var(--accent); } .sig-sell { color:var(--red); } .sig-hold { color:var(--amber); } .sig-none { color:var(--muted); }
@@ -503,7 +511,10 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
 <div id="cart-pie-holder" class="cart-pie-wrap" style="display:none">
   <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
     <div class="section-title">Rendimento da carteira</div>
-    <select id="cart-yield-filter" class="news-select" multiple style="min-width:220px;max-width:340px"></select>
+    <div class="filter-dd" id="cart-filter-dd">
+      <button class="filter-btn" id="cart-filter-btn" type="button">Consolidado</button>
+      <div class="filter-panel" id="cart-filter-panel"></div>
+    </div>
     <div class="period-tabs" id="cart-yield-tabs">
       <button class="period-tab active" data-cp="1M">1M</button>
       <button class="period-tab" data-cp="3M">3M</button>
@@ -1116,7 +1127,6 @@ function render() {
 
   renderCarteiraPie(rows);
 }
-document.addEventListener('click', e => { if (!e.target.closest('.td-btns')) closeAllRowMenus(); });
 
 function closeAllRowMenus() {
   document.querySelectorAll('.row-menu.open').forEach(el => el.classList.remove('open'));
@@ -1145,15 +1155,39 @@ async function renderCarteiraPie(rows) {
     })
     .filter(x => x.valor > 0);
   if (!items.length) { holder.style.display = 'none'; return; }
-  const filterEl = document.getElementById('cart-yield-filter');
-  filterEl.innerHTML = `<option value="__all__"${cartYieldFilter.size===0?' selected':''}>Consolidado</option>` + items.map(i=>`<option value="${i.ticker}" ${cartYieldFilter.has(i.ticker)?'selected':''}>${i.ticker}</option>`).join('');
+  const panelEl = document.getElementById('cart-filter-panel');
+  const btnEl = document.getElementById('cart-filter-btn');
+  panelEl.innerHTML = `<label class="filter-opt"><input type="checkbox" data-v="__all__" ${cartYieldFilter.size===0?'checked':''}/> Consolidado</label>` +
+    items.map(i=>`<label class="filter-opt"><input type="checkbox" data-v="${i.ticker}" ${cartYieldFilter.has(i.ticker)?'checked':''}/> ${i.ticker}</label>`).join('');
+  btnEl.innerHTML = cartYieldFilter.size
+    ? `<span class="filter-chips">${[...cartYieldFilter].map(t=>`<span class="filter-chip">${t}<b data-rm="${t}">×</b></span>`).join('')}</span>`
+    : 'Consolidado';
+  btnEl.querySelectorAll('[data-rm]').forEach(el=>el.onclick=(ev)=>{ev.stopPropagation();cartYieldFilter.delete(el.dataset.rm);render();});
+  panelEl.querySelectorAll('input').forEach(inp=>inp.onchange=()=>{
+    if (inp.dataset.v === '__all__') cartYieldFilter = new Set();
+    else {
+      panelEl.querySelector('input[data-v="__all__"]').checked = false;
+      if (inp.checked) cartYieldFilter.add(inp.dataset.v); else cartYieldFilter.delete(inp.dataset.v);
+    }
+    btnEl.innerHTML = cartYieldFilter.size
+      ? `<span class="filter-chips">${[...cartYieldFilter].map(t=>`<span class="filter-chip">${t}<b data-rm="${t}">×</b></span>`).join('')}</span>`
+      : 'Consolidado';
+    btnEl.querySelectorAll('[data-rm]').forEach(el=>el.onclick=(ev)=>{ev.stopPropagation();cartYieldFilter.delete(el.dataset.rm);render();});
+    render();
+  });
   const selectedItems = cartYieldFilter.size ? items.filter(i => cartYieldFilter.has(i.ticker)) : items;
   if (!selectedItems.length) { holder.style.display = 'none'; return; }
   holder.style.display = 'block';
   const ctx = document.getElementById('cart-pie-chart').getContext('2d');
   if (cartPieInst) cartPieInst.destroy();
   const mapRange = { '1M':'1mo','3M':'3mo','6M':'6mo','1Y':'1y' };
-  const histories = await Promise.all(selectedItems.map(i => _fetchBrapiHist(i.ticker, mapRange[cartYieldPeriod] || '1mo')));
+  let histories = await Promise.all(selectedItems.map(i => _fetchBrapiHist(i.ticker, mapRange[cartYieldPeriod] || '1mo')));
+  if ((cartYieldPeriod === '6M' || cartYieldPeriod === '1Y') && histories.some(h => h.length < 40)) {
+    const full = await Promise.all(selectedItems.map(i => _fetchBrapiHist(i.ticker, '5y')));
+    const daysBack = cartYieldPeriod === '6M' ? 185 : 370;
+    const cut = Date.now() - daysBack * 86400000;
+    histories = full.map(h => h.filter(p => (Number(p.date) || 0) * 1000 >= cut));
+  }
   const dateSet = new Set();
   histories.forEach(h => h.forEach(p => dateSet.add(_isoFromTs(p.date))));
   const dates = [...dateSet].sort();
@@ -1276,11 +1310,8 @@ document.getElementById('cart-yield-tabs').querySelectorAll('.period-tab').forEa
   document.getElementById('cart-yield-tabs').querySelectorAll('.period-tab').forEach(x=>x.classList.remove('active'));
   t.classList.add('active'); cartYieldPeriod=t.dataset.cp; render();
 }));
-document.getElementById('cart-yield-filter').addEventListener('change', e => {
-  const vals = [...e.target.selectedOptions].map(o => o.value).filter(v => v !== '__all__');
-  cartYieldFilter = new Set(vals);
-  render();
-});
+document.getElementById('cart-filter-btn').addEventListener('click',()=>document.getElementById('cart-filter-panel').classList.toggle('open'));
+document.addEventListener('click',e=>{if(!e.target.closest('#cart-filter-dd')) document.getElementById('cart-filter-panel').classList.remove('open');});
 
 document.getElementById('search-input').addEventListener('input',e=>{searchTerm=e.target.value.trim();render();});
 
