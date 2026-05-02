@@ -503,6 +503,7 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
 <div id="cart-pie-holder" class="cart-pie-wrap" style="display:none">
   <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
     <div class="section-title">Rendimento da carteira</div>
+    <select id="cart-yield-filter" class="news-select" multiple style="min-width:220px;max-width:340px"></select>
     <div class="period-tabs" id="cart-yield-tabs">
       <button class="period-tab active" data-cp="1M">1M</button>
       <button class="period-tab" data-cp="3M">3M</button>
@@ -922,6 +923,7 @@ let activityRows = [];
 let activityHighGainTickers = new Set();
 let cartPieInst = null;
 let cartYieldPeriod = '1M';
+let cartYieldFilter = new Set();
 
 
 async function load() {
@@ -1114,6 +1116,7 @@ function render() {
 
   renderCarteiraPie(rows);
 }
+document.addEventListener('click', e => { if (!e.target.closest('.td-btns')) closeAllRowMenus(); });
 
 function closeAllRowMenus() {
   document.querySelectorAll('.row-menu.open').forEach(el => el.classList.remove('open'));
@@ -1142,17 +1145,21 @@ async function renderCarteiraPie(rows) {
     })
     .filter(x => x.valor > 0);
   if (!items.length) { holder.style.display = 'none'; return; }
+  const filterEl = document.getElementById('cart-yield-filter');
+  filterEl.innerHTML = `<option value="__all__"${cartYieldFilter.size===0?' selected':''}>Consolidado</option>` + items.map(i=>`<option value="${i.ticker}" ${cartYieldFilter.has(i.ticker)?'selected':''}>${i.ticker}</option>`).join('');
+  const selectedItems = cartYieldFilter.size ? items.filter(i => cartYieldFilter.has(i.ticker)) : items;
+  if (!selectedItems.length) { holder.style.display = 'none'; return; }
   holder.style.display = 'block';
   const ctx = document.getElementById('cart-pie-chart').getContext('2d');
   if (cartPieInst) cartPieInst.destroy();
   const mapRange = { '1M':'1mo','3M':'3mo','6M':'6mo','1Y':'1y' };
-  const histories = await Promise.all(items.map(i => _fetchBrapiHist(i.ticker, mapRange[cartYieldPeriod] || '1mo')));
+  const histories = await Promise.all(selectedItems.map(i => _fetchBrapiHist(i.ticker, mapRange[cartYieldPeriod] || '1mo')));
   const dateSet = new Set();
   histories.forEach(h => h.forEach(p => dateSet.add(_isoFromTs(p.date))));
   const dates = [...dateSet].sort();
   const series = dates.map(d => {
     let val = 0;
-    items.forEach((it, idx) => {
+    selectedItems.forEach((it, idx) => {
       const h = histories[idx] || [];
       const pt = h.find(x => _isoFromTs(x.date) === d) || null;
       const price = Number(pt?.close || pt?.adjustedClose || pt?.open || 0);
@@ -1165,8 +1172,8 @@ async function renderCarteiraPie(rows) {
   const returns = series.map(v => ((v - base) / base) * 100);
   cartPieInst = new Chart(ctx, {
     type: 'line',
-    data: { labels: dates.slice(dates.length-returns.length).map(_fmtDateBR), datasets: [{ label:'Carteira', data: returns, borderColor:'#3dffa0', backgroundColor:'rgba(61,255,160,.08)', fill:true, pointRadius:0, tension:.25 }] },
-    options: { maintainAspectRatio:false, plugins:{ tooltip:{ callbacks:{ label:c=>`Carteira: ${fmtR(series[c.dataIndex])} (${_fmtRet(c.raw)})` } }, legend:{ display:false } },
+    data: { labels: dates.slice(dates.length-returns.length).map(_fmtDateBR), datasets: [{ label: cartYieldFilter.size ? 'Seleção' : 'Consolidado', data: returns, borderColor:'#3dffa0', backgroundColor:'rgba(61,255,160,.08)', fill:true, pointRadius:0, tension:.25 }] },
+    options: { maintainAspectRatio:false, interaction:{mode:'index',intersect:false}, plugins:{ tooltip:{ enabled:true, callbacks:{ label:c=>`${cartYieldFilter.size?'Seleção':'Consolidado'}: ${fmtR(series[c.dataIndex])} (${_fmtRet(c.raw)})` } }, legend:{ display:false } },
       scales:{ y:{ ticks:{ callback:v=>_fmtRet(v,true), color:'#5a6078' }, grid:{ color:'rgba(255,255,255,.03)'} }, x:{ ticks:{ color:'#5a6078', maxTicksLimit:6 }, grid:{ color:'rgba(255,255,255,.03)'} } } }
   });
 }
@@ -1269,6 +1276,11 @@ document.getElementById('cart-yield-tabs').querySelectorAll('.period-tab').forEa
   document.getElementById('cart-yield-tabs').querySelectorAll('.period-tab').forEach(x=>x.classList.remove('active'));
   t.classList.add('active'); cartYieldPeriod=t.dataset.cp; render();
 }));
+document.getElementById('cart-yield-filter').addEventListener('change', e => {
+  const vals = [...e.target.selectedOptions].map(o => o.value).filter(v => v !== '__all__');
+  cartYieldFilter = new Set(vals);
+  render();
+});
 
 document.getElementById('search-input').addEventListener('input',e=>{searchTerm=e.target.value.trim();render();});
 
