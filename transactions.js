@@ -8,6 +8,51 @@ const IRRF_DT_TX     = 0.01;    // 1% sobre ganho líquido DT
 
 // ── Estado dos modais ──
 let _opTicker = null, _opCat = null;
+const _negPrecoFieldByCat = {};
+
+async function _upsertCarteiraRow(cartTable, ticker, qty, pm) {
+  await fetch(SUPA_URL + '/rest/v1/' + cartTable, {
+    method: 'POST',
+    headers: { ...H, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify([{ ticker, quantidade: qty, preco_medio: pm }])
+  });
+}
+
+async function _insertNegociacao(cat, payloadBase) {
+  const table = cat === 'acao' ? 'acoes_negociacoes' : 'fiis_negociacoes';
+  const candidates = _negPrecoFieldByCat[cat] ? [_negPrecoFieldByCat[cat]] : ['preco_unitario', 'preco'];
+  let lastErr = null;
+  const rawDate = String(payloadBase.data_negociacao || '').trim();
+  const normalizedDate = /^\d{2}\/\d{2}\/\d{4}$/.test(rawDate)
+    ? `${rawDate.slice(6,10)}-${rawDate.slice(3,5)}-${rawDate.slice(0,2)}`
+    : rawDate;
+
+  for (const priceField of candidates) {
+    const payload = {
+      ticker: payloadBase.ticker,
+      tipo: payloadBase.tipo,
+      quantidade: payloadBase.quantidade,
+      [priceField]: payloadBase.preco,
+    };
+    if (normalizedDate) payload.data_negociacao = normalizedDate;
+    if (payloadBase.taxas != null) payload.taxas = payloadBase.taxas;
+
+    const variants = [payload, (() => { const p = { ...payload }; delete p.taxas; return p; })()];
+    for (const body of variants) {
+      const res = await fetch(SUPA_URL + '/rest/v1/' + table, {
+        method: 'POST',
+        headers: { ...H, 'Prefer': 'return=minimal' },
+        body: JSON.stringify(body)
+      });
+      if (res.ok) {
+        _negPrecoFieldByCat[cat] = priceField;
+        return;
+      }
+      lastErr = await res.text().catch(() => 'erro ao inserir negociação');
+    }
+  }
+  throw new Error(lastErr || 'não foi possível inserir negociação');
+}
 
 // ════════════════════════════════════
 //  MODAL COMPRA
@@ -39,15 +84,13 @@ async function confirmarCompra() {
   const btn = document.getElementById('mc-btn-confirm');
   btn.disabled = true; btn.textContent = 'salvando…';
   try {
-    const table = cat === 'acao' ? 'acoes_negociacoes' : 'fiis_negociacoes';
-    await fetch(SUPA_URL + '/rest/v1/' + table, {
-      method: 'POST',
-      headers: { ...H, 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ ticker, tipo: 'C', quantidade: qty, preco_unitario: preco, data_negociacao: data, taxas })
-    });
+    await _insertNegociacao(cat, { ticker, tipo: 'C', quantidade: qty, preco, data_negociacao: data, taxas });
     fecharCompra();
     await _recalcularPM(ticker, cat);
-  } catch (e) { console.error('confirmarCompra:', e); }
+  } catch (e) {
+    console.error('confirmarCompra:', e);
+    alert('Não foi possível registrar a compra. Verifique data/valores e tente novamente.');
+  }
   btn.disabled = false; btn.textContent = 'Confirmar';
 }
 
@@ -107,26 +150,21 @@ async function confirmarVenda() {
   const btn = document.getElementById('mv-btn-confirm');
   btn.disabled = true; btn.textContent = 'salvando…';
   try {
-    const table     = cat === 'acao' ? 'acoes_negociacoes' : 'fiis_negociacoes';
     const cartTable = cat === 'acao' ? 'acoes_carteira'    : 'fiis_carteira';
     const cart      = cat === 'acao' ? acoesCart           : fiisCart;
-    await fetch(SUPA_URL + '/rest/v1/' + table, {
-      method: 'POST',
-      headers: { ...H, 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ ticker, tipo: 'V', quantidade: qty, preco_unitario: preco, data_negociacao: data, taxas })
-    });
+    await _insertNegociacao(cat, { ticker, tipo: 'V', quantidade: qty, preco, data_negociacao: data, taxas });
     const newQty = Math.max(0, (Number(cart[ticker]?.quantidade) || 0) - qty);
     const pm     = Number(cart[ticker]?.preco_medio) || 0;
-    await fetch(SUPA_URL + '/rest/v1/' + cartTable + '?ticker=eq.' + ticker, {
-      method: 'PATCH',
-      headers: { ...H, 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ quantidade: newQty, preco_medio: pm })
-    });
+    await _upsertCarteiraRow(cartTable, ticker, newQty, pm);
     cart[ticker] = { ...cart[ticker], quantidade: newQty };
     fecharVenda();
     render();
     updateSummary();
-  } catch (e) { console.error('confirmarVenda:', e); }
+    if (typeof loadAtividade === 'function') await loadAtividade();
+  } catch (e) {
+    console.error('confirmarVenda:', e);
+    alert('Não foi possível registrar a venda. Verifique data/valores e tente novamente.');
+  }
   btn.disabled = false; btn.textContent = 'Confirmar';
 }
 
@@ -144,7 +182,7 @@ async function _recalcularPM(ticker, cat) {
   let qty = 0, totalCost = 0;
   for (const n of (Array.isArray(negs) ? negs : [])) {
     const q = Number(n.quantidade)     || 0;
-    const p = Number(n.preco_unitario) || 0;
+    const p = Number(n.preco_unitario ?? n.preco) || 0;
     const x = Number(n.taxas)          || 0;
     const t = (n.tipo || '').toLowerCase();
     if (t === 'c' || t === 'compra') {
@@ -157,14 +195,11 @@ async function _recalcularPM(ticker, cat) {
     }
   }
   const pm = qty > 0 ? totalCost / qty : 0;
-  await fetch(SUPA_URL + '/rest/v1/' + cartTable + '?ticker=eq.' + ticker, {
-    method: 'PATCH',
-    headers: { ...H, 'Prefer': 'return=minimal' },
-    body: JSON.stringify({ quantidade: qty, preco_medio: pm })
-  });
+  await _upsertCarteiraRow(cartTable, ticker, qty, pm);
   cart[ticker] = { ...cart[ticker], quantidade: qty, preco_medio: pm };
   render();
   updateSummary();
+  if (typeof loadAtividade === 'function') await loadAtividade();
 }
 
 // ════════════════════════════════════
@@ -207,7 +242,7 @@ function calcularIRMensalBR(fiiNegs, acNegs, fiiLoss0, acSwingLoss0, acDtLoss0) 
     const t     = n.ticker;
     if (!fiiBook[t]) fiiBook[t] = { qty: 0, totalCost: 0 };
     const qty   = Number(n.quantidade    ?? 0);
-    const preco = Number(n.preco_unitario ?? 0);
+    const preco = Number(n.preco_unitario ?? n.preco ?? 0);
     const taxas = Number(n.taxas          ?? 0);
     const tipo  = (n.tipo || '').toLowerCase();
     if (tipo === 'c' || tipo === 'compra') {
@@ -240,7 +275,7 @@ function calcularIRMensalBR(fiiNegs, acNegs, fiiLoss0, acSwingLoss0, acDtLoss0) 
     const t     = n.ticker;
     if (!acBook[t]) acBook[t] = { qty: 0, totalCost: 0 };
     const qty   = Number(n.quantidade    ?? 0);
-    const preco = Number(n.preco_unitario ?? 0);
+    const preco = Number(n.preco_unitario ?? n.preco ?? 0);
     const taxas = Number(n.taxas          ?? 0);
     const tipo  = (n.tipo || '').toLowerCase();
     if (tipo === 'c' || tipo === 'compra') {
