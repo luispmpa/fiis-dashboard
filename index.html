@@ -1116,6 +1116,7 @@ function render() {
 
   renderCarteiraPie(rows);
 }
+document.addEventListener('click', e => { if (!e.target.closest('.td-btns')) closeAllRowMenus(); });
 
 function closeAllRowMenus() {
   document.querySelectorAll('.row-menu.open').forEach(el => el.classList.remove('open'));
