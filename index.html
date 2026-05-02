@@ -297,6 +297,24 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
 .perf-info-note{font-size:10px;color:var(--muted);font-family:var(--mono);}
 .perf-chart-wrap{background:var(--bg1);border:1px solid var(--line);border-radius:12px;padding:20px;position:relative;}
 .perf-chart-inner{position:relative;height:340px;}
+
+/* === Dashboard (Google Finance style) === */
+.dash-wrap{padding:24px 32px;}
+.dash-header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px;}
+.dash-title{font-size:24px;font-weight:600;}
+.dash-total{font-family:var(--mono);font-size:32px;font-weight:500;}
+.dash-pl{font-family:var(--mono);font-size:13px;margin-top:4px;}
+.dash-grid{display:grid;grid-template-columns:1.2fr .8fr;gap:14px;margin-bottom:16px;}
+.dash-card{background:var(--bg1);border:1px solid var(--line);border-radius:12px;padding:16px;}
+.dash-card-title{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
+.dash-chart{height:220px;position:relative;}
+.dash-assets{display:flex;flex-direction:column;gap:8px;}
+.asset-row{display:grid;grid-template-columns:90px 95px 70px 70px 110px 110px;gap:10px;align-items:center;padding:12px 14px;background:var(--bg1);border:1px solid var(--line);border-radius:10px;font-family:var(--mono);font-size:12px;}
+.asset-row.head{font-family:var(--sans);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:transparent;border:none;padding:2px 6px;}
+.asset-ticker{font-weight:600;color:var(--blue);font-size:13px;}
+.dash-loading{display:flex;align-items:center;justify-content:center;gap:10px;padding:50px;color:var(--muted);font-family:var(--mono);}
+@media (max-width: 980px){.dash-grid{grid-template-columns:1fr}.asset-row{grid-template-columns:1fr 1fr;grid-template-areas:'ticker price' 'var qty' 'val pl';}.asset-row>div:nth-child(1){grid-area:ticker}.asset-row>div:nth-child(2){grid-area:price}.asset-row>div:nth-child(3){grid-area:var}.asset-row>div:nth-child(4){grid-area:qty}.asset-row>div:nth-child(5){grid-area:val}.asset-row>div:nth-child(6){grid-area:pl}.asset-row.head{display:none;}}
+
 .perf-loading-state{display:flex;align-items:center;justify-content:center;gap:10px;height:340px;color:var(--muted);font-family:var(--mono);font-size:12px;}
 .perf-empty-state{display:flex;align-items:center;justify-content:center;height:240px;color:var(--muted);font-size:13px;text-align:center;flex-direction:column;gap:12px;}
 /* Asset Chart in Modal */
@@ -438,6 +456,7 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
   <div class="logo">FINANCE<span>/</span>DASH</div>
   <nav class="nav-tabs" id="nav-tabs">
     <button class="nav-tab active" data-page="carteira">Carteira</button>
+    <button class="nav-tab" data-page="dashboard">Dashboard</button>
     <button class="nav-tab" data-page="agenda">Agenda</button>
     <button class="nav-tab" data-page="performance">Performance</button>
     <button class="nav-tab" data-page="ir">IR</button>
@@ -484,6 +503,41 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
   <div class="loading-state"><div class="spin"></div>carregando dados...</div>
 </div>
 </div><!-- /page-carteira -->
+
+<div id="page-dashboard" class="page">
+  <div class="dash-wrap">
+    <div id="dash-loading" class="dash-loading"><div class="spin"></div>carregando dashboard...</div>
+    <div id="dash-main" style="display:none">
+      <div class="dash-header">
+        <div>
+          <div class="dash-title">Minha Carteira</div>
+          <div class="dash-total" id="dash-total">R$ 0,00</div>
+          <div class="dash-pl" id="dash-pl">R$ 0,00 (0,00%)</div>
+        </div>
+        <div class="dash-card" style="min-width:220px">
+          <div class="dash-card-title">Renda mensal</div>
+          <div class="dash-total" style="font-size:24px" id="dash-income">R$ 0,00</div>
+        </div>
+      </div>
+      <div class="dash-grid">
+        <div class="dash-card">
+          <div class="dash-card-title">Performance</div>
+          <div class="dash-chart"><canvas id="dash-chart"></canvas></div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-title">Resumo</div>
+          <div class="preview-row"><span>Total investido</span><span id="dash-invested">R$ 0,00</span></div>
+          <div class="preview-row"><span>Valor atual</span><span id="dash-current">R$ 0,00</span></div>
+          <div class="preview-row"><span>Resultado</span><span id="dash-resume-pl">R$ 0,00</span></div>
+        </div>
+      </div>
+      <div class="dash-assets">
+        <div class="asset-row head"><div>Ativo</div><div>Preço</div><div>Var%</div><div>Qtd</div><div>Valor</div><div>Lucro</div></div>
+        <div id="dash-assets-body"></div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <div id="page-agenda" class="page">
   <div class="agenda-wrap">
@@ -1236,6 +1290,68 @@ async function manualRefresh() {
   label.textContent = origText;
 }
 
+
+let dashboardChart = null;
+
+function _dashSetText(id, val){ const el=document.getElementById(id); if(el) el.textContent=val; }
+
+function _renderDashboardChart(assets){
+  const ctx=document.getElementById('dash-chart');
+  if(!ctx) return;
+  const labels=assets.map(a=>a.symbol);
+  const vals=assets.map(a=>Number(a.total_value||0));
+  if(dashboardChart) dashboardChart.destroy();
+  dashboardChart = new Chart(ctx,{
+    type:'line',
+    data:{labels,datasets:[{label:'Valor por ativo',data:vals,borderColor:'#3dffa0',backgroundColor:'rgba(61,255,160,.15)',fill:true,tension:.25}]},
+    options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8890a8'}},y:{ticks:{color:'#8890a8'}}},maintainAspectRatio:false}
+  });
+}
+
+function renderDashboard(data){
+  const total = Number(data.total_value||0);
+  const invested = Number(data.total_invested||0);
+  const profit = Number(data.profit||0);
+  const profitPct = Number(data.profit_percent||0);
+  _dashSetText('dash-total', fmtR(total));
+  const plEl=document.getElementById('dash-pl');
+  plEl.textContent=`${fmtR(profit)} (${fmtPct(profitPct)})`;
+  plEl.className='dash-pl '+(profit>=0?'pl-pos':'pl-neg');
+  _dashSetText('dash-income', fmtR(Number(data.monthly_income||0)));
+  _dashSetText('dash-invested', fmtR(invested));
+  _dashSetText('dash-current', fmtR(total));
+  const r=document.getElementById('dash-resume-pl');
+  r.textContent=fmtR(profit); r.className=profit>=0?'pl-pos':'pl-neg';
+  const body=document.getElementById('dash-assets-body');
+  const assets=Array.isArray(data.assets)?data.assets:[];
+  body.innerHTML = assets.map(a=>{
+    const p=Number(a.profit||0);
+    const pp=Number(a.profit_percent||0);
+    const varPct = (a.current_price && a.avg_price) ? ((Number(a.current_price)-Number(a.avg_price))/Number(a.avg_price))*100 : 0;
+    return `<div class="asset-row">
+      <div class="asset-ticker">${a.symbol}</div><div>${fmtR(Number(a.current_price||0))}</div>
+      <div class="${varPct>=0?'up':'down'}">${fmtPct(varPct)}</div><div>${Number(a.quantity||0)}</div>
+      <div>${fmtR(Number(a.total_value||0))}</div><div class="${p>=0?'pl-pos':'pl-neg'}">${fmtR(p)} (${fmtPct(pp)})</div>
+    </div>`;
+  }).join('') || '<div class="empty"><p>Nenhum ativo em carteira.</p></div>';
+  _renderDashboardChart(assets);
+}
+
+async function loadDashboard(){
+  document.getElementById('dash-loading').style.display='flex';
+  document.getElementById('dash-main').style.display='none';
+  try{
+    const res = await fetch('/dashboard');
+    const data = await res.json();
+    renderDashboard(data);
+  }catch(e){
+    console.error('loadDashboard:',e);
+    document.getElementById('dash-assets-body').innerHTML='<div class="empty"><p>Falha ao carregar /dashboard.</p></div>';
+  }
+  document.getElementById('dash-loading').style.display='none';
+  document.getElementById('dash-main').style.display='block';
+}
+
 // ── Navegação entre páginas ──
 document.getElementById('nav-tabs').querySelectorAll('.nav-tab').forEach(tab => {
   tab.addEventListener('click', () => {
@@ -1244,6 +1360,7 @@ document.getElementById('nav-tabs').querySelectorAll('.nav-tab').forEach(tab => 
     const page = tab.dataset.page;
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-' + page).classList.add('active');
+    if (page === 'dashboard') loadDashboard();
     if (page === 'agenda') loadAgenda();
     if (page === 'performance') loadPerformance();
     if (page === 'ir') loadIR();
