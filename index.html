@@ -578,6 +578,8 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
       <button class="period-tab" data-cp="3M">3M</button>
       <button class="period-tab" data-cp="6M">6M</button>
       <button class="period-tab" data-cp="1Y">1Y</button>
+      <button class="period-tab" data-cp="3Y">3Y</button>
+      <button class="period-tab" data-cp="5Y">5Y</button>
     </div>
   </div>
   <div class="cart-pie-inner"><canvas id="cart-pie-chart"></canvas></div>
@@ -766,6 +768,8 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
         <button class="period-tab" data-period="3M">3M</button>
         <button class="period-tab active" data-period="6M">6M</button>
         <button class="period-tab" data-period="1Y">1Y</button>
+        <button class="period-tab" data-period="3Y">3Y</button>
+        <button class="period-tab" data-period="5Y">5Y</button>
         <button class="period-tab" data-period="MAX">MAX</button>
       </div>
     </div>
@@ -846,6 +850,8 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
         <button class="period-tab" data-ap="3M">3M</button>
         <button class="period-tab" data-ap="6M">6M</button>
         <button class="period-tab" data-ap="1Y">1Y</button>
+        <button class="period-tab" data-ap="3Y">3Y</button>
+        <button class="period-tab" data-ap="5Y">5Y</button>
       </div>
       <div class="det-chart-stats" id="det-chart-stats"></div>
     </div>
@@ -1240,11 +1246,11 @@ async function renderCarteiraPie(rows) {
   holder.style.display = 'block';
   const ctx = document.getElementById('cart-pie-chart').getContext('2d');
   if (cartPieInst) cartPieInst.destroy();
-  const mapRange = { '1M':'1mo','3M':'3mo','6M':'6mo','1Y':'1y' };
+  const mapRange = { '1M':'1mo','3M':'3mo','6M':'6mo','1Y':'1y','3Y':'3y','5Y':'5y' };
   let histories = await Promise.all(selectedItems.map(i => _fetchBrapiHist(i.ticker, mapRange[cartYieldPeriod] || '1mo')));
-  if ((cartYieldPeriod === '6M' || cartYieldPeriod === '1Y') && histories.some(h => h.length < 40)) {
+  if ((cartYieldPeriod === '6M' || cartYieldPeriod === '1Y' || cartYieldPeriod === '3Y' || cartYieldPeriod === '5Y') && histories.some(h => h.length < 40)) {
     const full = await Promise.all(selectedItems.map(i => _fetchBrapiHist(i.ticker, '5y')));
-    const daysBack = cartYieldPeriod === '6M' ? 185 : 370;
+    const daysBack = cartYieldPeriod === '6M' ? 185 : cartYieldPeriod === '1Y' ? 370 : cartYieldPeriod === '3Y' ? 1100 : 1865;
     const cut = Date.now() - daysBack * 86400000;
     histories = full.map(h => h.filter(p => (Number(p.date) || 0) * 1000 >= cut));
   }
@@ -1932,13 +1938,111 @@ const _fmtRet = (v, sign=true) => {
 const _isoFromTs = ts => new Date(ts * 1000).toISOString().slice(0, 10);
 const _fmtDateBR = iso => { if (!iso) return '—'; const [y,m,d] = iso.split('-'); return `${d}/${m}/${y}`; };
 
+
+function _normalizeTicker(ticker) {
+  return String(ticker || '').trim().toUpperCase().replace(/[^A-Z0-9.]/g, '');
+}
+
+async function _fetchJsonWithProxies(url) {
+  const urls = [
+    url,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    `https://corsproxy.io/?${encodeURIComponent(url)}`
+  ];
+  for (const u of urls) {
+    try {
+      const r = await fetch(u);
+      if (!r.ok) continue;
+      return await r.json();
+    } catch(e) {}
+  }
+  return null;
+}
+
+async function _fetchTextWithProxies(url) {
+  const urls = [
+    url,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    `https://corsproxy.io/?${encodeURIComponent(url)}`
+  ];
+  for (const u of urls) {
+    try {
+      const r = await fetch(u);
+      if (!r.ok) continue;
+      return await r.text();
+    } catch(e) {}
+  }
+  return '';
+}
+
+async function _fetchStooqHist(ticker, range) {
+  try {
+    const t = _normalizeTicker(ticker).replace(/\.SA$/, '');
+    const stooqTicker = `${t.toLowerCase()}.sa`;
+    const csv = await _fetchTextWithProxies(`https://stooq.com/q/d/l/?s=${encodeURIComponent(stooqTicker)}&i=d`);
+    if (!csv || !csv.includes('Date,Open,High,Low,Close')) return [];
+
+    const daysByRange = { '1mo': 31, '3mo': 93, '6mo': 186, '1y': 372, '3y': 1100, '5y': 1865 };
+    const days = daysByRange[range] || 186;
+    const cut = Date.now() - days * 86400000;
+
+    const lines = csv.trim().split(/\r?\n/).slice(1);
+    const out = [];
+    for (const line of lines) {
+      const [date, , , , close] = line.split(',');
+      const ts = Math.floor(new Date(date + 'T00:00:00Z').getTime() / 1000);
+      const c = Number(close);
+      if (!Number.isFinite(ts) || !Number.isFinite(c) || c <= 0) continue;
+      if (ts * 1000 >= cut) out.push({ date: ts, close: c });
+    }
+    return out;
+  } catch(e) { return []; }
+}
+
+async function _fetchYahooHist(ticker, range) {
+  const daysByRange = { '1mo': 31, '3mo': 93, '6mo': 186, '1y': 372, '3y': 1100, '5y': 1865 };
+  const now = Math.floor(Date.now() / 1000);
+  const period1 = now - (daysByRange[range] || 186) * 86400;
+  const period2 = now + 86400;
+  const t = _normalizeTicker(ticker);
+  const base = t.replace(/\.SA$/, '');
+  const candidates = [`${base}.SA`, base];
+  const hosts = ['query1.finance.yahoo.com', 'query2.finance.yahoo.com'];
+  try {
+    for (const sym of candidates) {
+      for (const host of hosts) {
+        const url = `https://${host}/v8/finance/chart/${encodeURIComponent(sym)}?period1=${period1}&period2=${period2}&interval=1d&includeAdjustedClose=true&events=div%2Csplits`;
+        const d = await _fetchJsonWithProxies(url);
+        if (!d) continue;
+        const res = d?.chart?.result?.[0];
+        const ts = res?.timestamp || [];
+        const closes = res?.indicators?.quote?.[0]?.close || [];
+        const adj = res?.indicators?.adjclose?.[0]?.adjclose || [];
+        const out = [];
+        for (let i = 0; i < ts.length; i++) {
+          const c = Number(closes[i] ?? adj[i]);
+          if (!Number.isFinite(c) || c <= 0) continue;
+          out.push({ date: Number(ts[i]), close: c });
+        }
+        if (out.length >= 20) return out;
+      }
+    }
+    return [];
+  } catch(e) { return []; }
+}
+
 async function _fetchBrapiHist(ticker, range) {
   try {
     const tok = BRAPI_TOKEN ? `&token=${BRAPI_TOKEN}` : '';
     const r = await fetch(`https://brapi.dev/api/quote/${ticker}?range=${range}&interval=1d&fundamental=false${tok}`);
     const d = await r.json();
-    return d.results?.[0]?.historicalDataPrice || [];
-  } catch(e) { return []; }
+    const hist = d.results?.[0]?.historicalDataPrice || [];
+    if (hist.length) return hist;
+  } catch(e) {}
+  // Fallbacks gratuitos sem token
+  const yahoo = await _fetchYahooHist(ticker, range);
+  if (yahoo.length) return yahoo;
+  return await _fetchStooqHist(ticker, range);
 }
 
 function _buildPriceMap(hist) {
@@ -2009,13 +2113,17 @@ async function loadPerformance() {
     return;
   }
 
-  const rangeMap = { '1M':'1mo', '3M':'3mo', '6M':'6mo', '1Y':'1y', 'MAX':'5y' };
+  const rangeMap = { '1M':'1mo', '3M':'3mo', '6M':'6mo', '1Y':'1y', '3Y':'3y', '5Y':'5y', 'MAX':'5y' };
   const brapiRange = rangeMap[perfPeriod] || '6mo';
 
   const allTickers = [...new Set(holdings.map(h => h.ticker))];
   const histories  = {};
   await Promise.all([...allTickers, 'BOVA11', 'XFIX11'].map(async ticker => {
-    const hist = await _fetchBrapiHist(ticker, brapiRange);
+    let hist = await _fetchBrapiHist(ticker, brapiRange);
+    if ((perfPeriod === '6M' || perfPeriod === '1Y' || perfPeriod === '3Y' || perfPeriod === '5Y' || perfPeriod === 'MAX') && hist.length < 40) {
+      const bigHist = await _fetchBrapiHist(ticker, '5y');
+      if (bigHist.length > hist.length) hist = bigHist;
+    }
     if (hist.length) histories[ticker] = hist;
   }));
 
@@ -2225,12 +2333,12 @@ async function renderAssetChart(ticker, cat) {
   statsEl.innerHTML = '';
   if (assetChartInst) { assetChartInst.destroy(); assetChartInst = null; }
 
-  const rangeMap = { '1M':'1mo', '3M':'3mo', '6M':'6mo', '1Y':'1y' };
+  const rangeMap = { '1M':'1mo', '3M':'3mo', '6M':'6mo', '1Y':'1y', '3Y':'3y', '5Y':'5y' };
   const range    = rangeMap[assetChartPeriod] || '3mo';
   let hist       = await _fetchBrapiHist(ticker, range);
-  if ((assetChartPeriod === '6M' || assetChartPeriod === '1Y') && hist.length < 40) {
+  if ((assetChartPeriod === '6M' || assetChartPeriod === '1Y' || assetChartPeriod === '3Y' || assetChartPeriod === '5Y') && hist.length < 40) {
     const bigHist = await _fetchBrapiHist(ticker, '5y');
-    const daysBack = assetChartPeriod === '6M' ? 185 : 370;
+    const daysBack = assetChartPeriod === '6M' ? 185 : assetChartPeriod === '1Y' ? 370 : assetChartPeriod === '3Y' ? 1100 : 1865;
     const cut = Date.now() - daysBack * 86400000;
     const sliced = bigHist.filter(p => (Number(p.date) || 0) * 1000 >= cut);
     if (sliced.length > hist.length) hist = sliced;
