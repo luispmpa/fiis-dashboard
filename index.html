@@ -2383,7 +2383,7 @@ async function renderAssetChart(ticker, cat) {
 
   // Stats bar
   statsEl.innerHTML = `
-    <div class="det-chart-stat"><span class="det-chart-stat-lbl">Período</span><span class="${lastRet >= 0 ? 'up' : 'down'}">${_fmtRet(lastRet)}</span></div>
+    <div class="det-chart-stat"><span class="det-chart-stat-lbl">Período</span><span class="${lastRet >= 0 ? 'up' : 'down'}">${fmtR(lastPrice - base)} (${_fmtRet(lastRet)})</span></div>
     ${plPct != null ? `<div class="det-chart-stat"><span class="det-chart-stat-lbl">vs P.M.</span><span class="${plPct >= 0 ? 'up' : 'down'}">${_fmtRet(plPct)}</span></div>` : ''}
     <div class="det-chart-stat"><span class="det-chart-stat-lbl">Máx</span><span>${fmtR(maxP)}</span></div>
     <div class="det-chart-stat"><span class="det-chart-stat-lbl">Mín</span><span>${fmtR(minP)}</span></div>
