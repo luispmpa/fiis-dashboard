@@ -578,6 +578,8 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
       <button class="period-tab" data-cp="3M">3M</button>
       <button class="period-tab" data-cp="6M">6M</button>
       <button class="period-tab" data-cp="1Y">1Y</button>
+      <button class="period-tab" data-cp="3Y">3Y</button>
+      <button class="period-tab" data-cp="5Y">5Y</button>
     </div>
   </div>
   <div class="cart-pie-inner"><canvas id="cart-pie-chart"></canvas></div>
@@ -766,6 +768,8 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
         <button class="period-tab" data-period="3M">3M</button>
         <button class="period-tab active" data-period="6M">6M</button>
         <button class="period-tab" data-period="1Y">1Y</button>
+        <button class="period-tab" data-period="3Y">3Y</button>
+        <button class="period-tab" data-period="5Y">5Y</button>
         <button class="period-tab" data-period="MAX">MAX</button>
       </div>
     </div>
@@ -846,6 +850,8 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
         <button class="period-tab" data-ap="3M">3M</button>
         <button class="period-tab" data-ap="6M">6M</button>
         <button class="period-tab" data-ap="1Y">1Y</button>
+        <button class="period-tab" data-ap="3Y">3Y</button>
+        <button class="period-tab" data-ap="5Y">5Y</button>
       </div>
       <div class="det-chart-stats" id="det-chart-stats"></div>
     </div>
@@ -1240,11 +1246,11 @@ async function renderCarteiraPie(rows) {
   holder.style.display = 'block';
   const ctx = document.getElementById('cart-pie-chart').getContext('2d');
   if (cartPieInst) cartPieInst.destroy();
-  const mapRange = { '1M':'1mo','3M':'3mo','6M':'6mo','1Y':'1y' };
+  const mapRange = { '1M':'1mo','3M':'3mo','6M':'6mo','1Y':'1y','3Y':'3y','5Y':'5y' };
   let histories = await Promise.all(selectedItems.map(i => _fetchBrapiHist(i.ticker, mapRange[cartYieldPeriod] || '1mo')));
-  if ((cartYieldPeriod === '6M' || cartYieldPeriod === '1Y') && histories.some(h => h.length < 40)) {
+  if ((cartYieldPeriod === '6M' || cartYieldPeriod === '1Y' || cartYieldPeriod === '3Y' || cartYieldPeriod === '5Y') && histories.some(h => h.length < 40)) {
     const full = await Promise.all(selectedItems.map(i => _fetchBrapiHist(i.ticker, '5y')));
-    const daysBack = cartYieldPeriod === '6M' ? 185 : 370;
+    const daysBack = cartYieldPeriod === '6M' ? 185 : cartYieldPeriod === '1Y' ? 370 : cartYieldPeriod === '3Y' ? 1100 : 1865;
     const cut = Date.now() - daysBack * 86400000;
     histories = full.map(h => h.filter(p => (Number(p.date) || 0) * 1000 >= cut));
   }
@@ -1976,7 +1982,7 @@ async function _fetchStooqHist(ticker, range) {
     const csv = await _fetchTextWithProxies(`https://stooq.com/q/d/l/?s=${encodeURIComponent(stooqTicker)}&i=d`);
     if (!csv || !csv.includes('Date,Open,High,Low,Close')) return [];
 
-    const daysByRange = { '1mo': 31, '3mo': 93, '6mo': 186, '1y': 372, '5y': 1865 };
+    const daysByRange = { '1mo': 31, '3mo': 93, '6mo': 186, '1y': 372, '3y': 1100, '5y': 1865 };
     const days = daysByRange[range] || 186;
     const cut = Date.now() - days * 86400000;
 
@@ -1994,7 +2000,7 @@ async function _fetchStooqHist(ticker, range) {
 }
 
 async function _fetchYahooHist(ticker, range) {
-  const daysByRange = { '1mo': 31, '3mo': 93, '6mo': 186, '1y': 372, '5y': 1865 };
+  const daysByRange = { '1mo': 31, '3mo': 93, '6mo': 186, '1y': 372, '3y': 1100, '5y': 1865 };
   const now = Math.floor(Date.now() / 1000);
   const period1 = now - (daysByRange[range] || 186) * 86400;
   const period2 = now + 86400;
@@ -2107,14 +2113,14 @@ async function loadPerformance() {
     return;
   }
 
-  const rangeMap = { '1M':'1mo', '3M':'3mo', '6M':'6mo', '1Y':'1y', 'MAX':'5y' };
+  const rangeMap = { '1M':'1mo', '3M':'3mo', '6M':'6mo', '1Y':'1y', '3Y':'3y', '5Y':'5y', 'MAX':'5y' };
   const brapiRange = rangeMap[perfPeriod] || '6mo';
 
   const allTickers = [...new Set(holdings.map(h => h.ticker))];
   const histories  = {};
   await Promise.all([...allTickers, 'BOVA11', 'XFIX11'].map(async ticker => {
     let hist = await _fetchBrapiHist(ticker, brapiRange);
-    if ((perfPeriod === '6M' || perfPeriod === '1Y' || perfPeriod === 'MAX') && hist.length < 40) {
+    if ((perfPeriod === '6M' || perfPeriod === '1Y' || perfPeriod === '3Y' || perfPeriod === '5Y' || perfPeriod === 'MAX') && hist.length < 40) {
       const bigHist = await _fetchBrapiHist(ticker, '5y');
       if (bigHist.length > hist.length) hist = bigHist;
     }
@@ -2327,12 +2333,12 @@ async function renderAssetChart(ticker, cat) {
   statsEl.innerHTML = '';
   if (assetChartInst) { assetChartInst.destroy(); assetChartInst = null; }
 
-  const rangeMap = { '1M':'1mo', '3M':'3mo', '6M':'6mo', '1Y':'1y' };
+  const rangeMap = { '1M':'1mo', '3M':'3mo', '6M':'6mo', '1Y':'1y', '3Y':'3y', '5Y':'5y' };
   const range    = rangeMap[assetChartPeriod] || '3mo';
   let hist       = await _fetchBrapiHist(ticker, range);
-  if ((assetChartPeriod === '6M' || assetChartPeriod === '1Y') && hist.length < 40) {
+  if ((assetChartPeriod === '6M' || assetChartPeriod === '1Y' || assetChartPeriod === '3Y' || assetChartPeriod === '5Y') && hist.length < 40) {
     const bigHist = await _fetchBrapiHist(ticker, '5y');
-    const daysBack = assetChartPeriod === '6M' ? 185 : 370;
+    const daysBack = assetChartPeriod === '6M' ? 185 : assetChartPeriod === '1Y' ? 370 : assetChartPeriod === '3Y' ? 1100 : 1865;
     const cut = Date.now() - daysBack * 86400000;
     const sliced = bigHist.filter(p => (Number(p.date) || 0) * 1000 >= cut);
     if (sliced.length > hist.length) hist = sliced;
@@ -2418,17 +2424,16 @@ async function renderAssetChart(ticker, cat) {
 
   const datasets = [{
     label: ticker,
-    data: returns, borderColor: color, borderWidth: 2,
+    data: prices, borderColor: color, borderWidth: 2,
     pointRadius: 0, tension: 0.3,
-    fill: { target: 'origin', above: fill, below: 'rgba(255,95,95,.08)' },
+    fill: false,
   }];
 
   // Preço médio as horizontal line
   if (pm > 0) {
-    const pmRet = +((pm - base) / base * 100).toFixed(4);
     datasets.push({
       label: 'Preço médio',
-      data: dates.map(() => pmRet),
+      data: dates.map(() => pm),
       borderColor: 'rgba(255,179,71,.6)', borderWidth: 1,
       borderDash: [5, 4], pointRadius: 0, tension: 0, fill: false,
     });
@@ -2449,8 +2454,9 @@ async function renderAssetChart(ticker, cat) {
           callbacks: {
             label: ctx => {
               const idx = ctx.dataIndex;
-              if (ctx.datasetIndex === 0) return `${ticker}: ${fmtR(prices[idx])} (${_fmtRet(ctx.raw)})`;
-              return `P.M.: ${fmtR(pm)} (${_fmtRet(ctx.raw)})`;
+              const ret = returns[idx];
+              if (ctx.datasetIndex === 0) return `${ticker}: ${fmtR(prices[idx])} (${_fmtRet(ret)})`;
+              return `P.M.: ${fmtR(pm)}`;
             }
           }
         }
@@ -2462,7 +2468,7 @@ async function renderAssetChart(ticker, cat) {
         },
         y: {
           grid: { color: 'rgba(255,255,255,.03)' },
-          ticks: { color: '#5a6078', font: { family: 'IBM Plex Mono', size: 10 }, callback: v => _fmtRet(v, true) }
+          ticks: { color: '#5a6078', font: { family: 'IBM Plex Mono', size: 10 }, callback: v => fmtR(v) }
         }
       }
     }
