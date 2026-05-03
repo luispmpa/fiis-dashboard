@@ -1932,13 +1932,80 @@ const _fmtRet = (v, sign=true) => {
 const _isoFromTs = ts => new Date(ts * 1000).toISOString().slice(0, 10);
 const _fmtDateBR = iso => { if (!iso) return '—'; const [y,m,d] = iso.split('-'); return `${d}/${m}/${y}`; };
 
+
+function _normalizeTicker(ticker) {
+  return String(ticker || '').trim().toUpperCase().replace(/[^A-Z0-9.]/g, '');
+}
+
+async function _fetchStooqHist(ticker, range) {
+  try {
+    const t = _normalizeTicker(ticker).replace(/\.SA$/, '');
+    const stooqTicker = `${t.toLowerCase()}.sa`;
+    const r = await fetch(`https://stooq.com/q/d/l/?s=${encodeURIComponent(stooqTicker)}&i=d`);
+    const csv = await r.text();
+    if (!csv || !csv.includes('Date,Open,High,Low,Close')) return [];
+
+    const daysByRange = { '1mo': 31, '3mo': 93, '6mo': 186, '1y': 372, '5y': 1865 };
+    const days = daysByRange[range] || 186;
+    const cut = Date.now() - days * 86400000;
+
+    const lines = csv.trim().split(/\r?\n/).slice(1);
+    const out = [];
+    for (const line of lines) {
+      const [date, , , , close] = line.split(',');
+      const ts = Math.floor(new Date(date + 'T00:00:00Z').getTime() / 1000);
+      const c = Number(close);
+      if (!Number.isFinite(ts) || !Number.isFinite(c) || c <= 0) continue;
+      if (ts * 1000 >= cut) out.push({ date: ts, close: c });
+    }
+    return out;
+  } catch(e) { return []; }
+}
+
+async function _fetchYahooHist(ticker, range) {
+  const daysByRange = { '1mo': 31, '3mo': 93, '6mo': 186, '1y': 372, '5y': 1865 };
+  const now = Math.floor(Date.now() / 1000);
+  const period1 = now - (daysByRange[range] || 186) * 86400;
+  const period2 = now + 86400;
+  const t = _normalizeTicker(ticker);
+  const base = t.replace(/\.SA$/, '');
+  const candidates = [`${base}.SA`, base];
+  const hosts = ['query1.finance.yahoo.com', 'query2.finance.yahoo.com'];
+  try {
+    for (const sym of candidates) {
+      for (const host of hosts) {
+        const url = `https://${host}/v8/finance/chart/${encodeURIComponent(sym)}?period1=${period1}&period2=${period2}&interval=1d&includeAdjustedClose=true&events=div%2Csplits`;
+        const r = await fetch(url);
+        const d = await r.json();
+        const res = d?.chart?.result?.[0];
+        const ts = res?.timestamp || [];
+        const closes = res?.indicators?.quote?.[0]?.close || [];
+        const adj = res?.indicators?.adjclose?.[0]?.adjclose || [];
+        const out = [];
+        for (let i = 0; i < ts.length; i++) {
+          const c = Number(closes[i] ?? adj[i]);
+          if (!Number.isFinite(c) || c <= 0) continue;
+          out.push({ date: Number(ts[i]), close: c });
+        }
+        if (out.length >= 20) return out;
+      }
+    }
+    return [];
+  } catch(e) { return []; }
+}
+
 async function _fetchBrapiHist(ticker, range) {
   try {
     const tok = BRAPI_TOKEN ? `&token=${BRAPI_TOKEN}` : '';
     const r = await fetch(`https://brapi.dev/api/quote/${ticker}?range=${range}&interval=1d&fundamental=false${tok}`);
     const d = await r.json();
-    return d.results?.[0]?.historicalDataPrice || [];
-  } catch(e) { return []; }
+    const hist = d.results?.[0]?.historicalDataPrice || [];
+    if (hist.length) return hist;
+  } catch(e) {}
+  // Fallbacks gratuitos sem token
+  const yahoo = await _fetchYahooHist(ticker, range);
+  if (yahoo.length) return yahoo;
+  return await _fetchStooqHist(ticker, range);
 }
 
 function _buildPriceMap(hist) {
@@ -2015,7 +2082,11 @@ async function loadPerformance() {
   const allTickers = [...new Set(holdings.map(h => h.ticker))];
   const histories  = {};
   await Promise.all([...allTickers, 'BOVA11', 'XFIX11'].map(async ticker => {
-    const hist = await _fetchBrapiHist(ticker, brapiRange);
+    let hist = await _fetchBrapiHist(ticker, brapiRange);
+    if ((perfPeriod === '6M' || perfPeriod === '1Y' || perfPeriod === 'MAX') && hist.length < 40) {
+      const bigHist = await _fetchBrapiHist(ticker, '5y');
+      if (bigHist.length > hist.length) hist = bigHist;
+    }
     if (hist.length) histories[ticker] = hist;
   }));
 
