@@ -374,7 +374,8 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
   }
 
   .summary {
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr;
   }
 
   .s-card {
@@ -384,14 +385,34 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
   }
 
   .toolbar {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
     padding: 10px 12px;
+  }
+
+  .tabs {
+    width: 100%;
+    overflow-x: auto;
+    padding: 3px;
+  }
+
+  .tab {
+    flex: 1 0 auto;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .btn-add {
+    width: 100%;
+    justify-content: center;
   }
 
   .search-wrap {
     max-width: 100%;
-    order: 3;
+    order: 0;
     width: 100%;
+    margin-left: 0;
   }
 
   .agenda-wrap,
@@ -408,7 +429,7 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
 
   tbody tr {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
       "ticker  ticker"
       "nome    nome"
@@ -441,17 +462,54 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
   .td-pl     { grid-area: pl; }
   .td-qty    { grid-area: qty; }
   .td-pm     { grid-area: pm; }
-  .td-btns   { grid-area: btns; flex-direction: row; justify-content: flex-end; gap: 8px; padding-top: 8px; border-top: 1px solid var(--line); margin-top: 4px; }
+  .td-btns   { grid-area: btns; flex-direction: row; justify-content: flex-end; gap: 8px; padding-top: 8px; border-top: 1px solid var(--line); margin-top: 4px; flex-wrap: wrap; }
   .td-vs, .td-sinal, .td-cat { display: none !important; }
 
-  input.cell-input { width: 100%; box-sizing: border-box; }
+  input.cell-input { width: 100%; min-width: 0; box-sizing: border-box; }
 
-  .btn-add {
-    padding: 6px 12px;
+  td {
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .perf-chart-inner {
     height: 220px;
+  }
+
+
+  #cart-pie-holder {
+    margin: 0 12px 12px;
+    padding: 12px;
+  }
+
+  #cart-pie-holder > div:first-child {
+    flex-wrap: wrap;
+    align-items: stretch;
+  }
+
+  .filter-dd {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .filter-btn {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .period-tabs {
+    width: 100%;
+    justify-content: space-between;
+    overflow-x: auto;
+  }
+
+  .period-tab {
+    flex: 1 0 56px;
+    text-align: center;
+  }
+
+  .cart-pie-inner {
+    height: 200px;
   }
 
   .modal {
