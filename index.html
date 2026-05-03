@@ -1963,21 +1963,34 @@ async function _fetchStooqHist(ticker, range) {
 }
 
 async function _fetchYahooHist(ticker, range) {
+  const daysByRange = { '1mo': 31, '3mo': 93, '6mo': 186, '1y': 372, '5y': 1865 };
+  const now = Math.floor(Date.now() / 1000);
+  const period1 = now - (daysByRange[range] || 186) * 86400;
+  const period2 = now + 86400;
+  const t = _normalizeTicker(ticker);
+  const base = t.replace(/\.SA$/, '');
+  const candidates = [`${base}.SA`, base];
+  const hosts = ['query1.finance.yahoo.com', 'query2.finance.yahoo.com'];
   try {
-    const t = _normalizeTicker(ticker);
-    const yfTicker = t.includes('.') ? t : `${t}.SA`;
-    const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yfTicker)}?range=${range}&interval=1d&events=div%2Csplits`);
-    const d = await r.json();
-    const res = d?.chart?.result?.[0];
-    const ts = res?.timestamp || [];
-    const closes = res?.indicators?.quote?.[0]?.close || [];
-    const out = [];
-    for (let i = 0; i < ts.length; i++) {
-      const c = Number(closes[i]);
-      if (!Number.isFinite(c) || c <= 0) continue;
-      out.push({ date: Number(ts[i]), close: c });
+    for (const sym of candidates) {
+      for (const host of hosts) {
+        const url = `https://${host}/v8/finance/chart/${encodeURIComponent(sym)}?period1=${period1}&period2=${period2}&interval=1d&includeAdjustedClose=true&events=div%2Csplits`;
+        const r = await fetch(url);
+        const d = await r.json();
+        const res = d?.chart?.result?.[0];
+        const ts = res?.timestamp || [];
+        const closes = res?.indicators?.quote?.[0]?.close || [];
+        const adj = res?.indicators?.adjclose?.[0]?.adjclose || [];
+        const out = [];
+        for (let i = 0; i < ts.length; i++) {
+          const c = Number(closes[i] ?? adj[i]);
+          if (!Number.isFinite(c) || c <= 0) continue;
+          out.push({ date: Number(ts[i]), close: c });
+        }
+        if (out.length >= 20) return out;
+      }
     }
-    return out;
+    return [];
   } catch(e) { return []; }
 }
 
