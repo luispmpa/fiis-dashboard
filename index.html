@@ -990,6 +990,8 @@ let dashboardData = null;
 let dashboardBySymbol = {};
 let activityRows = [];
 let activityHighGainTickers = new Set();
+let activitySearchTerm = '';
+let activitySort = { key: 'data_negociacao', dir: 'desc' };
 let cartPieInst = null;
 let cartYieldPeriod = '1M';
 let cartYieldFilter = new Set();
@@ -1524,9 +1526,86 @@ async function loadAtividade() {
 function renderAtividade() {
   const area = document.getElementById('atividade-area');
   if (!activityRows.length) { area.innerHTML='<div class="empty"><p>Sem movimentações.</p></div>'; return; }
-  area.innerHTML = `<table><thead><tr><th style="text-align:left">Data</th><th style="text-align:left">Ticker</th><th style="text-align:left">Categoria</th><th>Tipo</th><th>Qtd</th><th>Preço</th></tr></thead><tbody>${
-    activityRows.map(n=>`<tr><td style="text-align:left">${(n.data_negociacao||'').slice(0,10)}</td><td style="text-align:left">${n.ticker}</td><td style="text-align:left">${n._cat}</td><td>${(n.tipo||'').toUpperCase()}</td><td>${n.quantidade||0}</td><td>${fmtR(n.preco_unitario||n.preco||0)}</td></tr>`).join('')
-  }</tbody></table>`;
+  const term = (activitySearchTerm || '').trim().toLowerCase();
+  const filteredRows = activityRows.filter(n => {
+    if (!term) return true;
+    const txt = [
+      (n.data_negociacao || '').slice(0,10),
+      n.ticker || '',
+      n._cat || '',
+      (n.tipo || '').toUpperCase(),
+      String(n.quantidade ?? ''),
+      String(n.preco_unitario ?? n.preco ?? '')
+    ].join(' ').toLowerCase();
+    return txt.includes(term);
+  });
+  const rows = [...filteredRows].sort((a,b)=>_compareAtividade(a,b,activitySort.key,activitySort.dir));
+  const arrow = key => activitySort.key === key ? (activitySort.dir === 'asc' ? ' ↑' : ' ↓') : '';
+  area.innerHTML = `<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+      <input id="atividade-search" type="text" placeholder="Pesquisar atividade..." value="${_escapeHtml(activitySearchTerm)}" style="width:100%;max-width:320px">
+    </div>
+    <table><thead><tr>
+      <th style="text-align:left;cursor:pointer" onclick="setAtividadeSort('data_negociacao')">Data${arrow('data_negociacao')}</th>
+      <th style="text-align:left;cursor:pointer" onclick="setAtividadeSort('ticker')">Ticker${arrow('ticker')}</th>
+      <th style="text-align:left;cursor:pointer" onclick="setAtividadeSort('categoria')">Categoria${arrow('categoria')}</th>
+      <th style="cursor:pointer" onclick="setAtividadeSort('tipo')">Tipo${arrow('tipo')}</th>
+      <th style="cursor:pointer" onclick="setAtividadeSort('quantidade')">Qtd${arrow('quantidade')}</th>
+      <th style="cursor:pointer" onclick="setAtividadeSort('preco')">Preço${arrow('preco')}</th>
+    </tr></thead><tbody>${
+      rows.map(n=>`<tr><td style="text-align:left">${(n.data_negociacao||'').slice(0,10)}</td><td style="text-align:left">${n.ticker}</td><td style="text-align:left">${n._cat}</td><td>${(n.tipo||'').toUpperCase()}</td><td>${n.quantidade||0}</td><td>${fmtR(n.preco_unitario||n.preco||0)}</td></tr>`).join('')
+    }</tbody></table>
+    ${rows.length ? '' : '<div class="empty"><p>Nenhum resultado para a pesquisa.</p></div>'}`;
+  const search = document.getElementById('atividade-search');
+  if (search) {
+    search.addEventListener('input', (e) => {
+      activitySearchTerm = e.target.value || '';
+      renderAtividade();
+    });
+  }
+}
+
+function setAtividadeSort(key) {
+  if (activitySort.key === key) {
+    activitySort.dir = activitySort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    activitySort.key = key;
+    activitySort.dir = key === 'data_negociacao' ? 'desc' : 'asc';
+  }
+  renderAtividade();
+}
+
+function _compareAtividade(a, b, key, dir) {
+  let left = '', right = '';
+  if (key === 'data_negociacao') {
+    left = new Date(a.data_negociacao || 0).getTime();
+    right = new Date(b.data_negociacao || 0).getTime();
+  } else if (key === 'quantidade') {
+    left = Number(a.quantidade || 0);
+    right = Number(b.quantidade || 0);
+  } else if (key === 'preco') {
+    left = Number(a.preco_unitario ?? a.preco ?? 0);
+    right = Number(b.preco_unitario ?? b.preco ?? 0);
+  } else if (key === 'categoria') {
+    left = (a._cat || '').toLowerCase();
+    right = (b._cat || '').toLowerCase();
+  } else if (key === 'tipo') {
+    left = (a.tipo || '').toLowerCase();
+    right = (b.tipo || '').toLowerCase();
+  } else {
+    left = (a[key] || '').toString().toLowerCase();
+    right = (b[key] || '').toString().toLowerCase();
+  }
+  const order = left > right ? 1 : (left < right ? -1 : 0);
+  return dir === 'asc' ? order : -order;
+}
+
+function _escapeHtml(str) {
+  return String(str || '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
 
 // ── Agenda ──
