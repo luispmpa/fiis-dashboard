@@ -1047,6 +1047,16 @@ async function load() {
 
   await loadAtividade();
   render(); updateSummary(); updateLastUpdate();
+
+  // Aquece o cache 5Y para todos os tickers em carteira em background
+  setTimeout(() => {
+    const tickers = [
+      ...Object.entries(fiisCart).filter(([,c]) => Number(c.quantidade) > 0).map(([t]) => t),
+      ...Object.entries(acoesCart).filter(([,c]) => Number(c.quantidade) > 0).map(([t]) => t),
+      'BOVA11', 'XFIX11',
+    ];
+    [...new Set(tickers)].forEach(t => _getHistCached(t, '5y'));
+  }, 200);
 }
 
 function updateLastUpdate() {
@@ -1246,27 +1256,19 @@ async function renderCarteiraPie(rows) {
   holder.style.display = 'block';
   const ctx = document.getElementById('cart-pie-chart').getContext('2d');
   if (cartPieInst) cartPieInst.destroy();
-  const mapRange = { '1M':'1mo','3M':'3mo','6M':'6mo','1Y':'1y','3Y':'3y','5Y':'5y' };
-  let histories = await Promise.all(selectedItems.map(i => _fetchBrapiHist(i.ticker, mapRange[cartYieldPeriod] || '1mo')));
-  if ((cartYieldPeriod === '6M' || cartYieldPeriod === '1Y' || cartYieldPeriod === '3Y' || cartYieldPeriod === '5Y') && histories.some(h => h.length < 40)) {
-    const full = await Promise.all(selectedItems.map(i => _fetchBrapiHist(i.ticker, '5y')));
-    const daysBack = cartYieldPeriod === '6M' ? 185 : cartYieldPeriod === '1Y' ? 370 : cartYieldPeriod === '3Y' ? 1100 : 1865;
-    const cut = Date.now() - daysBack * 86400000;
-    histories = full.map(h => h.filter(p => (Number(p.date) || 0) * 1000 >= cut));
-  }
+  const histories = await Promise.all(selectedItems.map(i => _fetchHistForPeriod(i.ticker, cartYieldPeriod)));
   const dateSet = new Set();
   histories.forEach(h => h.forEach(p => dateSet.add(_isoFromTs(p.date))));
   const dates = [...dateSet].sort();
+  const priceMapsCart = histories.map(h => _forwardFill(dates, _buildPriceMap(h)));
   const series = dates.map(d => {
     let val = 0;
     selectedItems.forEach((it, idx) => {
-      const h = histories[idx] || [];
-      const pt = h.find(x => _isoFromTs(x.date) === d) || null;
-      const price = Number(pt?.close || pt?.adjustedClose || pt?.open || 0);
-      if (price > 0) val += price * it.qty;
+      const price = priceMapsCart[idx][d];
+      if (price) val += price * it.qty;
     });
     return val;
-  }).filter(v=>v>0);
+  }).filter(v => v > 0);
   if (!series.length) return;
   const base = series[0] || 1;
   const returns = series.map(v => ((v - base) / base) * 100);
@@ -2132,8 +2134,7 @@ async function loadPerformance() {
 
   loadingEl.style.display    = 'flex';
   emptyEl.style.display      = 'none';
-  chartInnerEl.style.display = 'none';
-  if (perfChartInst) { perfChartInst.destroy(); perfChartInst = null; }
+  if (!perfChartInst) chartInnerEl.style.display = 'none';
 
   const holdings = [
     ...Object.entries(fiisCart).filter(([,c]) => Number(c.quantidade) > 0).map(([t,c]) => ({ticker:t, qty:Number(c.quantidade)})),
@@ -2302,32 +2303,41 @@ async function loadPerformance() {
     },
   ];
 
-  perfChartInst = new Chart(ctx, {
-    type: 'line',
-    data: { labels, datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: '#1c2030', borderColor: 'rgba(255,255,255,.1)', borderWidth: 1,
-          titleColor: '#8890a8', bodyColor: '#dde1ec', padding: 10,
-          callbacks: { label: c => `${c.dataset.label}: ${_fmtRet(c.raw, true)}` }
-        }
-      },
-      scales: {
-        x: {
-          grid: { color: 'rgba(255,255,255,.04)' },
-          ticks: { color: '#5a6078', font: { family: 'IBM Plex Mono', size: 10 }, maxTicksLimit: 8, maxRotation: 0 }
+  if (perfChartInst) {
+    perfChartInst.data.labels = labels;
+    datasets.forEach((ds, i) => {
+      perfChartInst.data.datasets[i].data   = ds.data;
+      perfChartInst.data.datasets[i].hidden = ds.hidden;
+    });
+    perfChartInst.update('none');
+  } else {
+    perfChartInst = new Chart(ctx, {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1c2030', borderColor: 'rgba(255,255,255,.1)', borderWidth: 1,
+            titleColor: '#8890a8', bodyColor: '#dde1ec', padding: 10,
+            callbacks: { label: c => `${c.dataset.label}: ${_fmtRet(c.raw, true)}` }
+          }
         },
-        y: {
-          grid: { color: 'rgba(255,255,255,.04)' },
-          ticks: { color: '#5a6078', font: { family: 'IBM Plex Mono', size: 10 }, callback: v => _fmtRet(v, true) }
+        scales: {
+          x: {
+            grid: { color: 'rgba(255,255,255,.04)' },
+            ticks: { color: '#5a6078', font: { family: 'IBM Plex Mono', size: 10 }, maxTicksLimit: 8, maxRotation: 0 }
+          },
+          y: {
+            grid: { color: 'rgba(255,255,255,.04)' },
+            ticks: { color: '#5a6078', font: { family: 'IBM Plex Mono', size: 10 }, callback: v => _fmtRet(v, true) }
+          }
         }
       }
-    }
-  });
+    });
+  }
 
   loadingEl.style.display    = 'none';
   chartInnerEl.style.display = 'block';
@@ -2359,7 +2369,19 @@ async function renderAssetChart(ticker, cat) {
   statsEl.innerHTML = '';
   if (assetChartInst) { assetChartInst.destroy(); assetChartInst = null; }
 
-  const hist = await _fetchHistForPeriod(ticker, assetChartPeriod);
+  const periodDays = { '1M': 31, '3M': 93, '6M': 186, '1Y': 372, '3Y': 1100, '5Y': 1865 };
+  const approxStart = new Date(Date.now() - (periodDays[assetChartPeriod] || 93) * 86400000).toISOString().slice(0, 10);
+  const approxEnd   = new Date().toISOString().slice(0, 10);
+
+  const [hist, divRaw] = await Promise.all([
+    _fetchHistForPeriod(ticker, assetChartPeriod),
+    fetch(
+      SUPA_URL + '/rest/v1/dividend_events?ticker=eq.' + ticker +
+      '&event_date=gte.' + approxStart + '&event_date=lte.' + approxEnd +
+      '&select=event_date,value&order=event_date',
+      { headers: H }
+    ).then(r => r.json()).catch(() => [])
+  ]);
 
   if (!hist.length) {
     innerEl.innerHTML = `<div class="det-chart-loading" style="color:var(--muted)">${
@@ -2368,19 +2390,7 @@ async function renderAssetChart(ticker, cat) {
     return;
   }
 
-  // Fetch dividends for this ticker in the period
-  let dividends = [];
-  try {
-    const sd = _isoFromTs(hist[0].date), ed = _isoFromTs(hist[hist.length - 1].date);
-    const res = await fetch(
-      SUPA_URL + '/rest/v1/dividend_events?ticker=eq.' + ticker +
-      '&event_date=gte.' + sd + '&event_date=lte.' + ed +
-      '&select=event_date,value&order=event_date',
-      { headers: H }
-    );
-    const data = await res.json();
-    if (Array.isArray(data)) dividends = data;
-  } catch(e) {}
+  const dividends = Array.isArray(divRaw) ? divRaw : [];
 
   const dates   = hist.map(p => _isoFromTs(p.date));
   const prices  = hist.map(p => Number(p.close || p.adjustedClose || p.open || 0));
