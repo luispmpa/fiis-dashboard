@@ -595,6 +595,7 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
     <input id="search-input" type="text" placeholder="Buscar ticker ou nome...">
   </div>
+  <button class="btn-refresh" type="button" onclick="createNewPortfolio()" title="Criar nova carteira">Nova carteira</button>
   <button class="btn-add" onclick="openModal()">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
     Adicionar ativo
@@ -1384,6 +1385,35 @@ function closeDetailModal() {
 document.getElementById('modal-detail').addEventListener('click',e=>{if(e.target===document.getElementById('modal-detail'))closeDetailModal();});
 
 let delTicker=null, delCat=null;
+async function createNewPortfolio() {
+  const ok = confirm('Criar uma nova carteira? Isso zera posições e histórico de negociações da carteira atual.');
+  if (!ok) return;
+
+  try {
+    const reqs = [
+      fetch(SUPA_URL + '/rest/v1/fiis_carteira?ticker=neq.__none__', { method: 'DELETE', headers: H }),
+      fetch(SUPA_URL + '/rest/v1/acoes_carteira?ticker=neq.__none__', { method: 'DELETE', headers: H }),
+      fetch(SUPA_URL + '/rest/v1/fiis_negociacoes?ticker=neq.__none__', { method: 'DELETE', headers: H }),
+      fetch(SUPA_URL + '/rest/v1/acoes_negociacoes?ticker=neq.__none__', { method: 'DELETE', headers: H })
+    ];
+    const responses = await Promise.all(reqs);
+    if (responses.some(r => !r.ok)) throw new Error('Falha ao limpar dados da carteira.');
+
+    Object.keys(fiisCart).forEach(k => delete fiisCart[k]);
+    Object.keys(acoesCart).forEach(k => delete acoesCart[k]);
+
+    render();
+    updateSummary();
+    if (typeof loadAtividade === 'function') await loadAtividade();
+    if (typeof loadPerformance === 'function') await loadPerformance();
+
+    alert('Nova carteira criada com sucesso.');
+  } catch (e) {
+    console.error('createNewPortfolio:', e);
+    alert('Não foi possível criar nova carteira agora. Tente novamente.');
+  }
+}
+
 function openDelModal(ticker, cat) {
   delTicker=ticker; delCat=cat;
   const tipo = cat==='acao' ? 'ação' : 'FII';
