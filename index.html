@@ -1932,13 +1932,34 @@ const _fmtRet = (v, sign=true) => {
 const _isoFromTs = ts => new Date(ts * 1000).toISOString().slice(0, 10);
 const _fmtDateBR = iso => { if (!iso) return '—'; const [y,m,d] = iso.split('-'); return `${d}/${m}/${y}`; };
 
+async function _fetchYahooHist(ticker, range) {
+  try {
+    const yfTicker = ticker.includes('.') ? ticker : `${ticker}.SA`;
+    const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yfTicker)}?range=${range}&interval=1d&events=div%2Csplits`);
+    const d = await r.json();
+    const res = d?.chart?.result?.[0];
+    const ts = res?.timestamp || [];
+    const closes = res?.indicators?.quote?.[0]?.close || [];
+    const out = [];
+    for (let i = 0; i < ts.length; i++) {
+      const c = Number(closes[i]);
+      if (!Number.isFinite(c) || c <= 0) continue;
+      out.push({ date: Number(ts[i]), close: c });
+    }
+    return out;
+  } catch(e) { return []; }
+}
+
 async function _fetchBrapiHist(ticker, range) {
   try {
     const tok = BRAPI_TOKEN ? `&token=${BRAPI_TOKEN}` : '';
     const r = await fetch(`https://brapi.dev/api/quote/${ticker}?range=${range}&interval=1d&fundamental=false${tok}`);
     const d = await r.json();
-    return d.results?.[0]?.historicalDataPrice || [];
-  } catch(e) { return []; }
+    const hist = d.results?.[0]?.historicalDataPrice || [];
+    if (hist.length) return hist;
+  } catch(e) {}
+  // Fallback gratuito sem token
+  return await _fetchYahooHist(ticker, range);
 }
 
 function _buildPriceMap(hist) {
@@ -2015,7 +2036,11 @@ async function loadPerformance() {
   const allTickers = [...new Set(holdings.map(h => h.ticker))];
   const histories  = {};
   await Promise.all([...allTickers, 'BOVA11', 'XFIX11'].map(async ticker => {
-    const hist = await _fetchBrapiHist(ticker, brapiRange);
+    let hist = await _fetchBrapiHist(ticker, brapiRange);
+    if ((perfPeriod === '6M' || perfPeriod === '1Y' || perfPeriod === 'MAX') && hist.length < 40) {
+      const bigHist = await _fetchBrapiHist(ticker, '5y');
+      if (bigHist.length > hist.length) hist = bigHist;
+    }
     if (hist.length) histories[ticker] = hist;
   }));
 
