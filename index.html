@@ -2070,16 +2070,34 @@ async function _fetchYahooHist(ticker, range) {
 }
 
 async function _fetchBrapiHist(ticker, range) {
+  const expectedDays = _HIST_DAYS_BY_RANGE[range] || 186;
+  const expectedCutMs = Date.now() - expectedDays * 86400000;
+  const tolerance = 30 * 86400000; // 30 dias de tolerância
+
+  function _coversRange(hist) {
+    if (!hist.length) return false;
+    const earliest = Math.min(...hist.map(p => (Number(p.date) || 0) * 1000));
+    return earliest <= expectedCutMs + tolerance;
+  }
+
+  let brapi = [];
   try {
     const tok = BRAPI_TOKEN ? `&token=${BRAPI_TOKEN}` : '';
     const r = await fetch(`https://brapi.dev/api/quote/${ticker}?range=${range}&interval=1d&fundamental=false${tok}`);
     const d = await r.json();
-    const hist = d.results?.[0]?.historicalDataPrice || [];
-    if (hist.length) return hist;
+    brapi = d.results?.[0]?.historicalDataPrice || [];
   } catch(e) {}
-  // Fallbacks gratuitos sem token
+
+  if (_coversRange(brapi)) return brapi;
+
+  // BrAPI não cobriu o período completo — tenta Yahoo
   const yahoo = await _fetchYahooHist(ticker, range);
-  if (yahoo.length) return yahoo;
+  if (_coversRange(yahoo)) return yahoo;
+
+  // Usa o que tiver mais dados entre BrAPI e Yahoo antes de tentar Stooq
+  const best = brapi.length >= yahoo.length ? brapi : yahoo;
+  if (best.length) return best;
+
   return await _fetchStooqHist(ticker, range);
 }
 
