@@ -59,6 +59,8 @@ td { padding:14px 20px; font-family:var(--mono); font-size:12px; text-align:righ
 td:first-child { text-align:left; }
 td:nth-child(2) { font-family:var(--sans); font-size:13px; text-align:left; color:var(--muted2); }
 td:nth-child(3) { text-align:left; }
+.td-sel { text-align:center !important; }
+.td-sel input { accent-color: var(--accent); cursor:pointer; }
 th.sortable { cursor:pointer; user-select:none; }
 th.sortable:hover { color:var(--text); }
 th.sort-asc::after { content:' ↑'; color:var(--accent); }
@@ -330,6 +332,44 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
 .dash-loading{display:flex;align-items:center;justify-content:center;gap:10px;padding:50px;color:var(--muted);font-family:var(--mono);}
 @media (max-width: 980px){.dash-grid{grid-template-columns:1fr}.asset-row{grid-template-columns:1fr 1fr;grid-template-areas:'ticker price' 'var qty' 'val pl';}.asset-row>div:nth-child(1){grid-area:ticker}.asset-row>div:nth-child(2){grid-area:price}.asset-row>div:nth-child(3){grid-area:var}.asset-row>div:nth-child(4){grid-area:qty}.asset-row>div:nth-child(5){grid-area:val}.asset-row>div:nth-child(6){grid-area:pl}.asset-row.head{display:none;}}
 
+/* === NOTEBOOK / MONITORES MENORES === */
+@media (max-width: 1200px) {
+  .toolbar,
+  .agenda-wrap,
+  .news-wrap,
+  .perf-wrap,
+  .ir-wrap,
+  .dash-wrap {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .summary .s-card {
+    padding: 14px 16px;
+  }
+
+  th, td {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  td {
+    font-size: 11px;
+  }
+
+  .td-vs,
+  .td-sinal,
+  .th-vs,
+  .th-sinal {
+    display: none;
+  }
+
+  input.cell-input {
+    width: 68px;
+  }
+}
+
+
 .perf-loading-state{display:flex;align-items:center;justify-content:center;gap:10px;height:340px;color:var(--muted);font-family:var(--mono);font-size:12px;}
 .perf-empty-state{display:flex;align-items:center;justify-content:center;height:240px;color:var(--muted);font-size:13px;text-align:center;flex-direction:column;gap:12px;}
 /* Asset Chart in Modal */
@@ -557,6 +597,15 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
     <input id="search-input" type="text" placeholder="Buscar ticker ou nome...">
   </div>
+  <select id="portfolio-select" class="filter-btn" style="min-width:170px" onchange="onChangePortfolio(this.value)"></select>
+  <button class="btn-refresh" type="button" onclick="createPortfolio()" title="Criar nova carteira">+ Carteira</button>
+  <button class="btn-refresh" type="button" onclick="renamePortfolio()" title="Renomear carteira">Renomear</button>
+  <button class="btn-refresh" type="button" onclick="deletePortfolio()" title="Excluir carteira">Excluir</button>
+  <select id="portfolio-migrate-select" class="filter-btn" style="min-width:160px">
+    <option value="">Migrar selecionados para...</option>
+  </select>
+  <button class="btn-refresh" type="button" onclick="migrateSelectedToPortfolio(document.getElementById('portfolio-migrate-select').value)">Migrar</button>
+  <button class="btn-refresh" type="button" onclick="removeSelectedFromPortfolio()">Remover selecionados</button>
   <button class="btn-add" onclick="openModal()">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
     Adicionar ativo
@@ -1001,6 +1050,95 @@ let activitySort = { key: 'data_negociacao', dir: 'desc' };
 let cartPieInst = null;
 let cartYieldPeriod = '1M';
 let cartYieldFilter = new Set();
+let portfolios = [];
+let activePortfolioId = null;
+let selectedTickers = new Set();
+
+const PF_KEY = 'finance_dash_portfolios_v1';
+
+function _pfNormalizeEntry(e={}) {
+  return {
+    id: e.id || ('pf_' + Date.now() + '_' + Math.random().toString(36).slice(2,7)),
+    name: (e.name || 'Carteira').trim(),
+    fiisCart: e.fiisCart || {},
+    acoesCart: e.acoesCart || {},
+  };
+}
+function _pfSave() {
+  localStorage.setItem(PF_KEY, JSON.stringify({ activePortfolioId, portfolios }));
+}
+function _pfApplyActive() {
+  const p = portfolios.find(x => x.id === activePortfolioId) || portfolios[0];
+  if (!p) return;
+  activePortfolioId = p.id;
+  fiisCart = JSON.parse(JSON.stringify(p.fiisCart || {}));
+  acoesCart = JSON.parse(JSON.stringify(p.acoesCart || {}));
+}
+function _pfPersistActiveFromMemory() {
+  const i = portfolios.findIndex(x => x.id === activePortfolioId);
+  if (i < 0) return;
+  portfolios[i].fiisCart = JSON.parse(JSON.stringify(fiisCart || {}));
+  portfolios[i].acoesCart = JSON.parse(JSON.stringify(acoesCart || {}));
+  _pfSave();
+}
+function _pfRenderSelector() {
+  const sel = document.getElementById('portfolio-select');
+  if (!sel) return;
+  sel.innerHTML = portfolios.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+  sel.value = activePortfolioId || '';
+  const mig = document.getElementById('portfolio-migrate-select');
+  if (mig) {
+    mig.innerHTML = '<option value="">Migrar selecionados para...</option>' +
+      portfolios.filter(p => p.id !== activePortfolioId).map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+  }
+}
+function createPortfolio() {
+  const name = prompt('Nome da nova carteira:');
+  if (!name || !name.trim()) return;
+  const p = _pfNormalizeEntry({ name: name.trim(), fiisCart: {}, acoesCart: {} });
+  portfolios.push(p); activePortfolioId = p.id; _pfApplyActive(); currentTab='cart'; selectedTickers.clear(); _pfSave(); _pfRenderSelector(); render(); updateSummary();
+}
+function renamePortfolio() {
+  const p = portfolios.find(x => x.id === activePortfolioId); if (!p) return;
+  const name = prompt('Novo nome da carteira:', p.name);
+  if (!name || !name.trim()) return;
+  p.name = name.trim(); _pfSave(); _pfRenderSelector();
+}
+function deletePortfolio() {
+  if (portfolios.length <= 1) return alert('Mantenha pelo menos 1 carteira.');
+  const p = portfolios.find(x => x.id === activePortfolioId); if (!p) return;
+  if (!confirm(`Excluir carteira "${p.name}"?`)) return;
+  portfolios = portfolios.filter(x => x.id !== p.id);
+  activePortfolioId = portfolios[0].id;
+  _pfApplyActive(); _pfSave(); _pfRenderSelector(); render(); updateSummary();
+}
+function onChangePortfolio(id) {
+  _pfPersistActiveFromMemory();
+  activePortfolioId = id;
+  _pfApplyActive();
+  selectedTickers.clear();
+  _pfSave();
+  render(); updateSummary();
+  if (typeof loadPerformance === 'function') loadPerformance();
+}
+function toggleSelectTicker(t){ if(selectedTickers.has(t)) selectedTickers.delete(t); else selectedTickers.add(t); render(); }
+function clearSelected(){ selectedTickers.clear(); render(); }
+function removeSelectedFromPortfolio() {
+  if (!selectedTickers.size) return;
+  selectedTickers.forEach(t => { delete fiisCart[t]; delete acoesCart[t]; });
+  _pfPersistActiveFromMemory(); selectedTickers.clear(); render(); updateSummary();
+}
+function migrateSelectedToPortfolio(targetId) {
+  if (!selectedTickers.size || !targetId || targetId===activePortfolioId) return;
+  const from = portfolios.find(p=>p.id===activePortfolioId);
+  const to = portfolios.find(p=>p.id===targetId);
+  if (!from || !to) return;
+  selectedTickers.forEach(t => {
+    if (from.fiisCart[t]) { to.fiisCart[t] = { ...from.fiisCart[t] }; delete from.fiisCart[t]; }
+    if (from.acoesCart[t]) { to.acoesCart[t] = { ...from.acoesCart[t] }; delete from.acoesCart[t]; }
+  });
+  _pfApplyActive(); _pfSave(); selectedTickers.clear(); render(); updateSummary();
+}
 
 
 async function load() {
@@ -1013,13 +1151,11 @@ async function load() {
   ]);
   fiisData = await fmRes.json();
   const fc = await fcRes.json();
-  fiisCart = {};
-  fc.forEach(c => fiisCart[c.ticker]=c);
+  const initialFiis = {}; fc.forEach(c => initialFiis[c.ticker]=c);
 
   acoesData = await amRes.json();
   const ac = await acRes.json();
-  acoesCart = {};
-  ac.forEach(c => acoesCart[c.ticker]=c);
+  const initialAcoes = {}; ac.forEach(c => initialAcoes[c.ticker]=c);
 
   // /dashboard como fonte principal de posição, PM e preço atual
   dashboardData = null; dashboardBySymbol = {};
@@ -1046,6 +1182,23 @@ async function load() {
   });
 
   await loadAtividade();
+  const raw = localStorage.getItem(PF_KEY);
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      portfolios = (parsed.portfolios || []).map(_pfNormalizeEntry);
+      activePortfolioId = parsed.activePortfolioId || portfolios[0]?.id || null;
+    } catch (_) {}
+  }
+  if (!portfolios.length) {
+    const p = _pfNormalizeEntry({ name: 'Principal', fiisCart: initialFiis, acoesCart: initialAcoes });
+    portfolios = [p]; activePortfolioId = p.id; _pfSave();
+  }
+  _pfApplyActive();
+  // Com múltiplas carteiras locais, o resumo deve refletir o estado da carteira ativa.
+  dashboardData = null;
+  _pfRenderSelector();
+
   render(); updateSummary(); updateLastUpdate();
 
   // Aquece o cache 5Y para todos os tickers em carteira em background
@@ -1151,6 +1304,7 @@ function render() {
   const area=document.getElementById('table-area');
   if (rows.length===0) {
     area.innerHTML=`<div class="empty"><span>📭</span><p>${currentTab==='cart'?'Nenhum ativo na carteira. Adicione ativos ou preencha as cotas.':'Nenhum ativo encontrado.'}</p></div>`;
+    _pfPersistActiveFromMemory();
     return;
   }
 
@@ -1168,6 +1322,7 @@ function render() {
     const catBadge = r._cat==='fii' ? '<span class="cat-fii">FII</span>' : '<span class="cat-acao">AÇÃO</span>';
     const catCol = showCat ? `<td class="td-cat">${catBadge}</td>` : '';
     return `<tr>
+      <td class="td-sel"><input type="checkbox" ${selectedTickers.has(r.ticker)?'checked':''} onchange="toggleSelectTicker('${r.ticker}')"></td>
       <td class="td-ticker"><span class="ticker-label" onclick="openDetailModal('${r.ticker}','${r._cat}')">${r.ticker}</span></td>
       ${catCol}
       <td class="td-nome">${r.nome||'—'}</td>
@@ -1194,14 +1349,15 @@ function render() {
   }).join('');
 
   const sc=sortCol, sd=sortDir;
-  function th(label,col,align='right'){const a=align==='left'?'text-align:left':'';const cls=['sortable',sc===col?(sd>0?'sort-asc':'sort-desc'):''].join(' ').trim();return `<th class="${cls}" style="${a}" onclick="setSort('${col}')">${label}</th>`;}
+  function th(label,col,align='right',extra=''){const a=align==='left'?'text-align:left':'';const cls=['sortable',sc===col?(sd>0?'sort-asc':'sort-desc'):'',extra].join(' ').trim();return `<th class="${cls}" style="${a}" onclick="setSort('${col}')">${label}</th>`;}
   const catTh = showCat ? th('Categoria','cat','left') : '';
   area.innerHTML=`<div class="table-wrap"><table>
-    <thead><tr>${th('Ticker','ticker','left')}${catTh}${th('Nome','nome','left')}${th(segLabel,'seg','left')}${th('Preço','preco')}${th('Var. dia','vd')}${th('Var. sem.','vs')}${th('Últ. div.','div')}${th('DY%','dy')}${th('Qtd','cotas')}${th('P. médio','pm')}${th('Posição','pos')}${th('P&L','pl')}<th>Sinal</th><th></th></tr></thead>
+    <thead><tr><th style="text-align:center;width:34px">✓</th>${th('Ticker','ticker','left')}${catTh}${th('Nome','nome','left')}${th(segLabel,'seg','left')}${th('Preço','preco')}${th('Var. dia','vd')}${th('Var. sem.','vs','','th-vs')}${th('Últ. div.','div')}${th('DY%','dy')}${th('Qtd','cotas')}${th('P. médio','pm')}${th('Posição','pos')}${th('P&L','pl')}<th class="th-sinal">Sinal</th><th></th></tr></thead>
     <tbody>${tbody}</tbody>
   </table></div>`;
 
   renderCarteiraPie(rows);
+  _pfPersistActiveFromMemory();
 }
 
 function closeAllRowMenus() {
@@ -1346,6 +1502,7 @@ function closeDetailModal() {
 document.getElementById('modal-detail').addEventListener('click',e=>{if(e.target===document.getElementById('modal-detail'))closeDetailModal();});
 
 let delTicker=null, delCat=null;
+
 function openDelModal(ticker, cat) {
   delTicker=ticker; delCat=cat;
   const tipo = cat==='acao' ? 'ação' : 'FII';
@@ -2136,27 +2293,43 @@ async function loadPerformance() {
   emptyEl.style.display      = 'none';
   if (!perfChartInst) chartInnerEl.style.display = 'none';
 
-  const holdings = [
+  const currentHoldings = [
     ...Object.entries(fiisCart).filter(([,c]) => Number(c.quantidade) > 0).map(([t,c]) => ({ticker:t, qty:Number(c.quantidade)})),
     ...Object.entries(acoesCart).filter(([,c]) => Number(c.quantidade) > 0).map(([t,c]) => ({ticker:t, qty:Number(c.quantidade)}))
   ];
 
-  if (!holdings.length) {
+  // Negociações reais da carteira (compra/venda) para linha temporal correta.
+  const [fiisOpsRaw, acoesOpsRaw] = await Promise.all([
+    fetch(SUPA_URL + '/rest/v1/fiis_negociacoes?select=ticker,tipo,quantidade,data_negociacao', { headers: H }).then(r => r.json()).catch(() => []),
+    fetch(SUPA_URL + '/rest/v1/acoes_negociacoes?select=ticker,tipo,quantidade,data_negociacao', { headers: H }).then(r => r.json()).catch(() => [])
+  ]);
+
+  const ops = [...(Array.isArray(fiisOpsRaw) ? fiisOpsRaw : []), ...(Array.isArray(acoesOpsRaw) ? acoesOpsRaw : [])]
+    .map(o => ({
+      ticker: String(o.ticker || '').trim().toUpperCase(),
+      tipo: String(o.tipo || '').toLowerCase(),
+      qtd: Number(o.quantidade) || 0,
+      date: String(o.data_negociacao || '').slice(0, 10)
+    }))
+    .filter(o => o.ticker && o.qtd > 0 && /^\d{4}-\d{2}-\d{2}$/.test(o.date));
+
+  const allTickers = [...new Set([...currentHoldings.map(h => h.ticker), ...ops.map(o => o.ticker)])];
+  if (!allTickers.length) {
     loadingEl.style.display = 'none';
     emptyEl.style.display   = 'flex';
     return;
   }
 
-  const allTickers = [...new Set(holdings.map(h => h.ticker))];
   const histories  = {};
   await Promise.all([...allTickers, 'BOVA11', 'XFIX11'].map(async ticker => {
     const hist = await _fetchHistForPeriod(ticker, perfPeriod);
     if (hist.length) histories[ticker] = hist;
   }));
 
-  // Build unified date list from portfolio assets
+  // Build unified date list from portfolio assets + operation dates.
   const dateSet = new Set();
   allTickers.forEach(t => (histories[t] || []).forEach(p => dateSet.add(_isoFromTs(p.date))));
+  ops.forEach(o => dateSet.add(o.date));
   const allDates = [...dateSet].sort();
 
   if (!allDates.length) {
@@ -2175,12 +2348,37 @@ async function loadPerformance() {
     priceMaps[ticker] = _forwardFill(allDates, _buildPriceMap(histories[ticker]));
   }
 
-  // Portfolio daily value series
+  // Quantidade diária por ativo baseada em compra/venda.
+  const opsByTicker = {};
+  for (const o of ops) {
+    if (!opsByTicker[o.ticker]) opsByTicker[o.ticker] = [];
+    opsByTicker[o.ticker].push(o);
+  }
+  Object.values(opsByTicker).forEach(arr => arr.sort((a,b) => a.date.localeCompare(b.date)));
+
+  const qtyByDateByTicker = {};
+  for (const t of allTickers) {
+    const arr = opsByTicker[t] || [];
+    let idx = 0, qty = 0;
+    const qmap = {};
+    for (const d of allDates) {
+      while (idx < arr.length && arr[idx].date <= d) {
+        const op = arr[idx++];
+        if (op.tipo === 'c' || op.tipo === 'compra') qty += op.qtd;
+        else if (op.tipo === 'v' || op.tipo === 'venda') qty = Math.max(0, qty - op.qtd);
+      }
+      qmap[d] = qty;
+    }
+    qtyByDateByTicker[t] = qmap;
+  }
+
+  // Portfolio daily value series com peso dinâmico por data.
   const portfolioSeries = allDates.map(date => {
     let value = 0;
-    for (const h of holdings) {
-      const price = priceMaps[h.ticker]?.[date];
-      if (price) value += h.qty * price;
+    for (const t of allTickers) {
+      const qty = qtyByDateByTicker[t]?.[date] || 0;
+      const price = priceMaps[t]?.[date];
+      if (qty > 0 && price) value += qty * price;
     }
     return { date, value };
   }).filter(p => p.value > 0);
@@ -2206,7 +2404,7 @@ async function loadPerformance() {
     );
     const data = await res.json();
     if (Array.isArray(data)) {
-      const portfolioSet = new Set(holdings.map(h => h.ticker));
+      const portfolioSet = new Set(allTickers);
       dividends = data.filter(d => portfolioSet.has(d.ticker));
     }
   } catch(e) {}
@@ -2214,9 +2412,10 @@ async function loadPerformance() {
   const retDiv = portfolioSeries.map(p => {
     let cumDiv = 0;
     for (const div of dividends) {
-      if (div.event_date && div.event_date <= p.date) {
-        const h = holdings.find(x => x.ticker === div.ticker);
-        if (h) cumDiv += h.qty * (Number(div.value) || 0);
+      const evDate = String(div.event_date || '').slice(0, 10);
+      if (evDate && evDate <= p.date) {
+        const qty = qtyByDateByTicker[div.ticker]?.[evDate] || 0;
+        cumDiv += qty * (Number(div.value) || 0);
       }
     }
     return +((p.value + cumDiv - base) / base * 100).toFixed(4);
@@ -2253,8 +2452,8 @@ async function loadPerformance() {
     if (subId) { const s = document.getElementById(subId); if (s) s.textContent = subVal || ''; }
   }
 
-  _setCard('pc-bruto', lastBruto, 'pc-bruto-sub', 'valorização das cotas');
-  _setCard('pc-div',   lastDiv,   'pc-div-sub',   'inclui dividendos recebidos');
+  _setCard('pc-bruto', lastBruto, 'pc-bruto-sub', 'valorização com compras/vendas no período');
+  _setCard('pc-div',   lastDiv,   'pc-div-sub',   'inclui dividendos recebidos por posição');
   _setCard('pc-cdi',   lastBruto - lastCdi, 'pc-cdi-sub', 'CDI acum.: ' + _fmtRet(lastCdi, false));
   if (lastBova != null) {
     _setCard('pc-bova', lastBruto - lastBova, 'pc-bova-sub', 'IBOV acum.: ' + _fmtRet(lastBova, false));
@@ -2265,7 +2464,7 @@ async function loadPerformance() {
   const pelEl = document.getElementById('pc-pat');
   if (pelEl) pelEl.textContent = fmtR(patValue);
 
-  // Render Chart.js
+// Render Chart.js
   const ctx = document.getElementById('perf-chart').getContext('2d');
   const labels = finalDates.map(d => _fmtDateBR(d));
 
