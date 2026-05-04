@@ -59,6 +59,8 @@ td { padding:14px 20px; font-family:var(--mono); font-size:12px; text-align:righ
 td:first-child { text-align:left; }
 td:nth-child(2) { font-family:var(--sans); font-size:13px; text-align:left; color:var(--muted2); }
 td:nth-child(3) { text-align:left; }
+.td-sel { text-align:center !important; }
+.td-sel input { accent-color: var(--accent); cursor:pointer; }
 th.sortable { cursor:pointer; user-select:none; }
 th.sortable:hover { color:var(--text); }
 th.sort-asc::after { content:' ↑'; color:var(--accent); }
@@ -599,6 +601,11 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
   <button class="btn-refresh" type="button" onclick="createPortfolio()" title="Criar nova carteira">+ Carteira</button>
   <button class="btn-refresh" type="button" onclick="renamePortfolio()" title="Renomear carteira">Renomear</button>
   <button class="btn-refresh" type="button" onclick="deletePortfolio()" title="Excluir carteira">Excluir</button>
+  <select id="portfolio-migrate-select" class="filter-btn" style="min-width:160px">
+    <option value="">Migrar selecionados para...</option>
+  </select>
+  <button class="btn-refresh" type="button" onclick="migrateSelectedToPortfolio(document.getElementById('portfolio-migrate-select').value)">Migrar</button>
+  <button class="btn-refresh" type="button" onclick="removeSelectedFromPortfolio()">Remover selecionados</button>
   <button class="btn-add" onclick="openModal()">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
     Adicionar ativo
@@ -1045,6 +1052,7 @@ let cartYieldPeriod = '1M';
 let cartYieldFilter = new Set();
 let portfolios = [];
 let activePortfolioId = null;
+let selectedTickers = new Set();
 
 const PF_KEY = 'finance_dash_portfolios_v1';
 
@@ -1078,12 +1086,17 @@ function _pfRenderSelector() {
   if (!sel) return;
   sel.innerHTML = portfolios.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
   sel.value = activePortfolioId || '';
+  const mig = document.getElementById('portfolio-migrate-select');
+  if (mig) {
+    mig.innerHTML = '<option value="">Migrar selecionados para...</option>' +
+      portfolios.filter(p => p.id !== activePortfolioId).map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+  }
 }
 function createPortfolio() {
   const name = prompt('Nome da nova carteira:');
   if (!name || !name.trim()) return;
   const p = _pfNormalizeEntry({ name: name.trim(), fiisCart: {}, acoesCart: {} });
-  portfolios.push(p); activePortfolioId = p.id; _pfApplyActive(); _pfSave(); _pfRenderSelector(); render(); updateSummary();
+  portfolios.push(p); activePortfolioId = p.id; _pfApplyActive(); currentTab='cart'; selectedTickers.clear(); _pfSave(); _pfRenderSelector(); render(); updateSummary();
 }
 function renamePortfolio() {
   const p = portfolios.find(x => x.id === activePortfolioId); if (!p) return;
@@ -1103,9 +1116,28 @@ function onChangePortfolio(id) {
   _pfPersistActiveFromMemory();
   activePortfolioId = id;
   _pfApplyActive();
+  selectedTickers.clear();
   _pfSave();
   render(); updateSummary();
   if (typeof loadPerformance === 'function') loadPerformance();
+}
+function toggleSelectTicker(t){ if(selectedTickers.has(t)) selectedTickers.delete(t); else selectedTickers.add(t); render(); }
+function clearSelected(){ selectedTickers.clear(); render(); }
+function removeSelectedFromPortfolio() {
+  if (!selectedTickers.size) return;
+  selectedTickers.forEach(t => { delete fiisCart[t]; delete acoesCart[t]; });
+  _pfPersistActiveFromMemory(); selectedTickers.clear(); render(); updateSummary();
+}
+function migrateSelectedToPortfolio(targetId) {
+  if (!selectedTickers.size || !targetId || targetId===activePortfolioId) return;
+  const from = portfolios.find(p=>p.id===activePortfolioId);
+  const to = portfolios.find(p=>p.id===targetId);
+  if (!from || !to) return;
+  selectedTickers.forEach(t => {
+    if (from.fiisCart[t]) { to.fiisCart[t] = { ...from.fiisCart[t] }; delete from.fiisCart[t]; }
+    if (from.acoesCart[t]) { to.acoesCart[t] = { ...from.acoesCart[t] }; delete from.acoesCart[t]; }
+  });
+  _pfApplyActive(); _pfSave(); selectedTickers.clear(); render(); updateSummary();
 }
 
 
@@ -1290,6 +1322,7 @@ function render() {
     const catBadge = r._cat==='fii' ? '<span class="cat-fii">FII</span>' : '<span class="cat-acao">AÇÃO</span>';
     const catCol = showCat ? `<td class="td-cat">${catBadge}</td>` : '';
     return `<tr>
+      <td class="td-sel"><input type="checkbox" ${selectedTickers.has(r.ticker)?'checked':''} onchange="toggleSelectTicker('${r.ticker}')"></td>
       <td class="td-ticker"><span class="ticker-label" onclick="openDetailModal('${r.ticker}','${r._cat}')">${r.ticker}</span></td>
       ${catCol}
       <td class="td-nome">${r.nome||'—'}</td>
@@ -1319,7 +1352,7 @@ function render() {
   function th(label,col,align='right',extra=''){const a=align==='left'?'text-align:left':'';const cls=['sortable',sc===col?(sd>0?'sort-asc':'sort-desc'):'',extra].join(' ').trim();return `<th class="${cls}" style="${a}" onclick="setSort('${col}')">${label}</th>`;}
   const catTh = showCat ? th('Categoria','cat','left') : '';
   area.innerHTML=`<div class="table-wrap"><table>
-    <thead><tr>${th('Ticker','ticker','left')}${catTh}${th('Nome','nome','left')}${th(segLabel,'seg','left')}${th('Preço','preco')}${th('Var. dia','vd')}${th('Var. sem.','vs','','th-vs')}${th('Últ. div.','div')}${th('DY%','dy')}${th('Qtd','cotas')}${th('P. médio','pm')}${th('Posição','pos')}${th('P&L','pl')}<th class="th-sinal">Sinal</th><th></th></tr></thead>
+    <thead><tr><th style="text-align:center;width:34px">✓</th>${th('Ticker','ticker','left')}${catTh}${th('Nome','nome','left')}${th(segLabel,'seg','left')}${th('Preço','preco')}${th('Var. dia','vd')}${th('Var. sem.','vs','','th-vs')}${th('Últ. div.','div')}${th('DY%','dy')}${th('Qtd','cotas')}${th('P. médio','pm')}${th('Posição','pos')}${th('P&L','pl')}<th class="th-sinal">Sinal</th><th></th></tr></thead>
     <tbody>${tbody}</tbody>
   </table></div>`;
 
