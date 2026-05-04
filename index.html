@@ -595,7 +595,10 @@ table.ir-ops td:first-child, table.ir-ops td:nth-child(2), table.ir-ops td:nth-c
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
     <input id="search-input" type="text" placeholder="Buscar ticker ou nome...">
   </div>
-  <button class="btn-refresh" type="button" onclick="createNewPortfolio()" title="Criar nova carteira">Nova carteira</button>
+  <select id="portfolio-select" class="filter-btn" style="min-width:170px" onchange="onChangePortfolio(this.value)"></select>
+  <button class="btn-refresh" type="button" onclick="createPortfolio()" title="Criar nova carteira">+ Carteira</button>
+  <button class="btn-refresh" type="button" onclick="renamePortfolio()" title="Renomear carteira">Renomear</button>
+  <button class="btn-refresh" type="button" onclick="deletePortfolio()" title="Excluir carteira">Excluir</button>
   <button class="btn-add" onclick="openModal()">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
     Adicionar ativo
@@ -1040,6 +1043,70 @@ let activitySort = { key: 'data_negociacao', dir: 'desc' };
 let cartPieInst = null;
 let cartYieldPeriod = '1M';
 let cartYieldFilter = new Set();
+let portfolios = [];
+let activePortfolioId = null;
+
+const PF_KEY = 'finance_dash_portfolios_v1';
+
+function _pfNormalizeEntry(e={}) {
+  return {
+    id: e.id || ('pf_' + Date.now() + '_' + Math.random().toString(36).slice(2,7)),
+    name: (e.name || 'Carteira').trim(),
+    fiisCart: e.fiisCart || {},
+    acoesCart: e.acoesCart || {},
+  };
+}
+function _pfSave() {
+  localStorage.setItem(PF_KEY, JSON.stringify({ activePortfolioId, portfolios }));
+}
+function _pfApplyActive() {
+  const p = portfolios.find(x => x.id === activePortfolioId) || portfolios[0];
+  if (!p) return;
+  activePortfolioId = p.id;
+  fiisCart = JSON.parse(JSON.stringify(p.fiisCart || {}));
+  acoesCart = JSON.parse(JSON.stringify(p.acoesCart || {}));
+}
+function _pfPersistActiveFromMemory() {
+  const i = portfolios.findIndex(x => x.id === activePortfolioId);
+  if (i < 0) return;
+  portfolios[i].fiisCart = JSON.parse(JSON.stringify(fiisCart || {}));
+  portfolios[i].acoesCart = JSON.parse(JSON.stringify(acoesCart || {}));
+  _pfSave();
+}
+function _pfRenderSelector() {
+  const sel = document.getElementById('portfolio-select');
+  if (!sel) return;
+  sel.innerHTML = portfolios.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+  sel.value = activePortfolioId || '';
+}
+function createPortfolio() {
+  const name = prompt('Nome da nova carteira:');
+  if (!name || !name.trim()) return;
+  const p = _pfNormalizeEntry({ name: name.trim(), fiisCart: {}, acoesCart: {} });
+  portfolios.push(p); activePortfolioId = p.id; _pfApplyActive(); _pfSave(); _pfRenderSelector(); render(); updateSummary();
+}
+function renamePortfolio() {
+  const p = portfolios.find(x => x.id === activePortfolioId); if (!p) return;
+  const name = prompt('Novo nome da carteira:', p.name);
+  if (!name || !name.trim()) return;
+  p.name = name.trim(); _pfSave(); _pfRenderSelector();
+}
+function deletePortfolio() {
+  if (portfolios.length <= 1) return alert('Mantenha pelo menos 1 carteira.');
+  const p = portfolios.find(x => x.id === activePortfolioId); if (!p) return;
+  if (!confirm(`Excluir carteira "${p.name}"?`)) return;
+  portfolios = portfolios.filter(x => x.id !== p.id);
+  activePortfolioId = portfolios[0].id;
+  _pfApplyActive(); _pfSave(); _pfRenderSelector(); render(); updateSummary();
+}
+function onChangePortfolio(id) {
+  _pfPersistActiveFromMemory();
+  activePortfolioId = id;
+  _pfApplyActive();
+  _pfSave();
+  render(); updateSummary();
+  if (typeof loadPerformance === 'function') loadPerformance();
+}
 
 
 async function load() {
@@ -1052,13 +1119,11 @@ async function load() {
   ]);
   fiisData = await fmRes.json();
   const fc = await fcRes.json();
-  fiisCart = {};
-  fc.forEach(c => fiisCart[c.ticker]=c);
+  const initialFiis = {}; fc.forEach(c => initialFiis[c.ticker]=c);
 
   acoesData = await amRes.json();
   const ac = await acRes.json();
-  acoesCart = {};
-  ac.forEach(c => acoesCart[c.ticker]=c);
+  const initialAcoes = {}; ac.forEach(c => initialAcoes[c.ticker]=c);
 
   // /dashboard como fonte principal de posição, PM e preço atual
   dashboardData = null; dashboardBySymbol = {};
@@ -1085,6 +1150,23 @@ async function load() {
   });
 
   await loadAtividade();
+  const raw = localStorage.getItem(PF_KEY);
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      portfolios = (parsed.portfolios || []).map(_pfNormalizeEntry);
+      activePortfolioId = parsed.activePortfolioId || portfolios[0]?.id || null;
+    } catch (_) {}
+  }
+  if (!portfolios.length) {
+    const p = _pfNormalizeEntry({ name: 'Principal', fiisCart: initialFiis, acoesCart: initialAcoes });
+    portfolios = [p]; activePortfolioId = p.id; _pfSave();
+  }
+  _pfApplyActive();
+  // Com múltiplas carteiras locais, o resumo deve refletir o estado da carteira ativa.
+  dashboardData = null;
+  _pfRenderSelector();
+
   render(); updateSummary(); updateLastUpdate();
 
   // Aquece o cache 5Y para todos os tickers em carteira em background
@@ -1190,6 +1272,7 @@ function render() {
   const area=document.getElementById('table-area');
   if (rows.length===0) {
     area.innerHTML=`<div class="empty"><span>📭</span><p>${currentTab==='cart'?'Nenhum ativo na carteira. Adicione ativos ou preencha as cotas.':'Nenhum ativo encontrado.'}</p></div>`;
+    _pfPersistActiveFromMemory();
     return;
   }
 
@@ -1241,6 +1324,7 @@ function render() {
   </table></div>`;
 
   renderCarteiraPie(rows);
+  _pfPersistActiveFromMemory();
 }
 
 function closeAllRowMenus() {
@@ -1385,34 +1469,6 @@ function closeDetailModal() {
 document.getElementById('modal-detail').addEventListener('click',e=>{if(e.target===document.getElementById('modal-detail'))closeDetailModal();});
 
 let delTicker=null, delCat=null;
-async function createNewPortfolio() {
-  const ok = confirm('Criar uma nova carteira? Isso zera posições e histórico de negociações da carteira atual.');
-  if (!ok) return;
-
-  try {
-    const reqs = [
-      fetch(SUPA_URL + '/rest/v1/fiis_carteira?ticker=neq.__none__', { method: 'DELETE', headers: H }),
-      fetch(SUPA_URL + '/rest/v1/acoes_carteira?ticker=neq.__none__', { method: 'DELETE', headers: H }),
-      fetch(SUPA_URL + '/rest/v1/fiis_negociacoes?ticker=neq.__none__', { method: 'DELETE', headers: H }),
-      fetch(SUPA_URL + '/rest/v1/acoes_negociacoes?ticker=neq.__none__', { method: 'DELETE', headers: H })
-    ];
-    const responses = await Promise.all(reqs);
-    if (responses.some(r => !r.ok)) throw new Error('Falha ao limpar dados da carteira.');
-
-    Object.keys(fiisCart).forEach(k => delete fiisCart[k]);
-    Object.keys(acoesCart).forEach(k => delete acoesCart[k]);
-
-    render();
-    updateSummary();
-    if (typeof loadAtividade === 'function') await loadAtividade();
-    if (typeof loadPerformance === 'function') await loadPerformance();
-
-    alert('Nova carteira criada com sucesso.');
-  } catch (e) {
-    console.error('createNewPortfolio:', e);
-    alert('Não foi possível criar nova carteira agora. Tente novamente.');
-  }
-}
 
 function openDelModal(ticker, cat) {
   delTicker=ticker; delCat=cat;
